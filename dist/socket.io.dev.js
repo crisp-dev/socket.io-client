@@ -1,8 +1,3 @@
-/*!
- * Socket.IO v2.3.0
- * (c) 2014-2019 Guillermo Rauch
- * Released under the MIT License.
- */
 (function webpackUniversalModuleDefinition(root, factory) {
 	if(typeof exports === 'object' && typeof module === 'object')
 		module.exports = factory();
@@ -152,7 +147,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	 */
 	
 	exports.Manager = __webpack_require__(15);
-	exports.Socket = __webpack_require__(39);
+	exports.Socket = __webpack_require__(32);
 
 
 /***/ }),
@@ -819,9 +814,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		}
 	
 		function extend(namespace, delimiter) {
-			var newDebug = createDebug(this.namespace + (typeof delimiter === 'undefined' ? ':' : delimiter) + namespace);
-			newDebug.log = this.log;
-			return newDebug;
+			return createDebug(this.namespace + (typeof delimiter === 'undefined' ? ':' : delimiter) + namespace);
 		}
 	
 		/**
@@ -2462,14 +2455,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	 */
 	
 	var eio = __webpack_require__(16);
-	var Socket = __webpack_require__(39);
+	var Socket = __webpack_require__(32);
 	var Emitter = __webpack_require__(11);
 	var parser = __webpack_require__(7);
-	var on = __webpack_require__(41);
-	var bind = __webpack_require__(42);
+	var on = __webpack_require__(34);
+	var bind = __webpack_require__(35);
 	var debug = __webpack_require__(3)('socket.io-client:manager');
-	var indexOf = __webpack_require__(38);
-	var Backoff = __webpack_require__(43);
+	var indexOf = __webpack_require__(21);
+	var Backoff = __webpack_require__(36);
 	
 	/**
 	 * IE6+ hasOwnProperty
@@ -3044,7 +3037,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * @api public
 	 *
 	 */
-	module.exports.parser = __webpack_require__(24);
+	module.exports.parser = __webpack_require__(22);
 
 
 /***/ }),
@@ -3058,10 +3051,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	var transports = __webpack_require__(18);
 	var Emitter = __webpack_require__(11);
 	var debug = __webpack_require__(3)('engine.io-client:socket');
-	var index = __webpack_require__(38);
-	var parser = __webpack_require__(24);
+	var index = __webpack_require__(21);
+	var parser = __webpack_require__(22);
 	var parseuri = __webpack_require__(2);
-	var parseqs = __webpack_require__(32);
+	var parseqs = __webpack_require__(30);
 	
 	/**
 	 * Module exports.
@@ -3197,9 +3190,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	 */
 	
 	Socket.Socket = Socket;
-	Socket.Transport = __webpack_require__(23);
+	Socket.Transport = __webpack_require__(31);
 	Socket.transports = __webpack_require__(18);
-	Socket.parser = __webpack_require__(24);
+	Socket.parser = __webpack_require__(22);
 	
 	/**
 	 * Creates transport of the given type.
@@ -3810,9 +3803,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	 */
 	
 	var XMLHttpRequest = __webpack_require__(19);
-	var XHR = __webpack_require__(21);
-	var JSONP = __webpack_require__(35);
-	var websocket = __webpack_require__(36);
 	
 	/**
 	 * Export transports.
@@ -3928,426 +3918,18 @@ return /******/ (function(modules) { // webpackBootstrap
 
 /***/ }),
 /* 21 */
-/***/ (function(module, exports, __webpack_require__) {
+/***/ (function(module, exports) {
 
-	/* global attachEvent */
 	
-	/**
-	 * Module requirements.
-	 */
+	var indexOf = [].indexOf;
 	
-	var XMLHttpRequest = __webpack_require__(19);
-	var Polling = __webpack_require__(22);
-	var Emitter = __webpack_require__(11);
-	var inherit = __webpack_require__(33);
-	var debug = __webpack_require__(3)('engine.io-client:polling-xhr');
-	
-	/**
-	 * Module exports.
-	 */
-	
-	module.exports = XHR;
-	module.exports.Request = Request;
-	
-	/**
-	 * Empty function
-	 */
-	
-	function empty () {}
-	
-	/**
-	 * XHR Polling constructor.
-	 *
-	 * @param {Object} opts
-	 * @api public
-	 */
-	
-	function XHR (opts) {
-	  Polling.call(this, opts);
-	  this.requestTimeout = opts.requestTimeout;
-	  this.extraHeaders = opts.extraHeaders;
-	
-	  if (typeof location !== 'undefined') {
-	    var isSSL = 'https:' === location.protocol;
-	    var port = location.port;
-	
-	    // some user agents have empty `location.port`
-	    if (!port) {
-	      port = isSSL ? 443 : 80;
-	    }
-	
-	    this.xd = (typeof location !== 'undefined' && opts.hostname !== location.hostname) ||
-	      port !== opts.port;
-	    this.xs = opts.secure !== isSSL;
+	module.exports = function(arr, obj){
+	  if (indexOf) return arr.indexOf(obj);
+	  for (var i = 0; i < arr.length; ++i) {
+	    if (arr[i] === obj) return i;
 	  }
-	}
-	
-	/**
-	 * Inherits from Polling.
-	 */
-	
-	inherit(XHR, Polling);
-	
-	/**
-	 * XHR supports binary
-	 */
-	
-	XHR.prototype.supportsBinary = true;
-	
-	/**
-	 * Creates a request.
-	 *
-	 * @param {String} method
-	 * @api private
-	 */
-	
-	XHR.prototype.request = function (opts) {
-	  opts = opts || {};
-	  opts.uri = this.uri();
-	  opts.xd = this.xd;
-	  opts.xs = this.xs;
-	  opts.agent = this.agent || false;
-	  opts.supportsBinary = this.supportsBinary;
-	  opts.enablesXDR = this.enablesXDR;
-	  opts.withCredentials = this.withCredentials;
-	
-	  // SSL options for Node.js client
-	  opts.pfx = this.pfx;
-	  opts.key = this.key;
-	  opts.passphrase = this.passphrase;
-	  opts.cert = this.cert;
-	  opts.ca = this.ca;
-	  opts.ciphers = this.ciphers;
-	  opts.rejectUnauthorized = this.rejectUnauthorized;
-	  opts.requestTimeout = this.requestTimeout;
-	
-	  // other options for Node.js client
-	  opts.extraHeaders = this.extraHeaders;
-	
-	  return new Request(opts);
+	  return -1;
 	};
-	
-	/**
-	 * Sends data.
-	 *
-	 * @param {String} data to send.
-	 * @param {Function} called upon flush.
-	 * @api private
-	 */
-	
-	XHR.prototype.doWrite = function (data, fn) {
-	  var isBinary = typeof data !== 'string' && data !== undefined;
-	  var req = this.request({ method: 'POST', data: data, isBinary: isBinary });
-	  var self = this;
-	  req.on('success', fn);
-	  req.on('error', function (err) {
-	    self.onError('xhr post error', err);
-	  });
-	  this.sendXhr = req;
-	};
-	
-	/**
-	 * Starts a poll cycle.
-	 *
-	 * @api private
-	 */
-	
-	XHR.prototype.doPoll = function () {
-	  debug('xhr poll');
-	  var req = this.request();
-	  var self = this;
-	  req.on('data', function (data) {
-	    self.onData(data);
-	  });
-	  req.on('error', function (err) {
-	    self.onError('xhr poll error', err);
-	  });
-	  this.pollXhr = req;
-	};
-	
-	/**
-	 * Request constructor
-	 *
-	 * @param {Object} options
-	 * @api public
-	 */
-	
-	function Request (opts) {
-	  this.method = opts.method || 'GET';
-	  this.uri = opts.uri;
-	  this.xd = !!opts.xd;
-	  this.xs = !!opts.xs;
-	  this.async = false !== opts.async;
-	  this.data = undefined !== opts.data ? opts.data : null;
-	  this.agent = opts.agent;
-	  this.isBinary = opts.isBinary;
-	  this.supportsBinary = opts.supportsBinary;
-	  this.enablesXDR = opts.enablesXDR;
-	  this.withCredentials = opts.withCredentials;
-	  this.requestTimeout = opts.requestTimeout;
-	
-	  // SSL options for Node.js client
-	  this.pfx = opts.pfx;
-	  this.key = opts.key;
-	  this.passphrase = opts.passphrase;
-	  this.cert = opts.cert;
-	  this.ca = opts.ca;
-	  this.ciphers = opts.ciphers;
-	  this.rejectUnauthorized = opts.rejectUnauthorized;
-	
-	  // other options for Node.js client
-	  this.extraHeaders = opts.extraHeaders;
-	
-	  this.create();
-	}
-	
-	/**
-	 * Mix in `Emitter`.
-	 */
-	
-	Emitter(Request.prototype);
-	
-	/**
-	 * Creates the XHR object and sends the request.
-	 *
-	 * @api private
-	 */
-	
-	Request.prototype.create = function () {
-	  var opts = { agent: this.agent, xdomain: this.xd, xscheme: this.xs, enablesXDR: this.enablesXDR };
-	
-	  // SSL options for Node.js client
-	  opts.pfx = this.pfx;
-	  opts.key = this.key;
-	  opts.passphrase = this.passphrase;
-	  opts.cert = this.cert;
-	  opts.ca = this.ca;
-	  opts.ciphers = this.ciphers;
-	  opts.rejectUnauthorized = this.rejectUnauthorized;
-	
-	  var xhr = this.xhr = new XMLHttpRequest(opts);
-	  var self = this;
-	
-	  try {
-	    debug('xhr open %s: %s', this.method, this.uri);
-	    xhr.open(this.method, this.uri, this.async);
-	    try {
-	      if (this.extraHeaders) {
-	        xhr.setDisableHeaderCheck && xhr.setDisableHeaderCheck(true);
-	        for (var i in this.extraHeaders) {
-	          if (this.extraHeaders.hasOwnProperty(i)) {
-	            xhr.setRequestHeader(i, this.extraHeaders[i]);
-	          }
-	        }
-	      }
-	    } catch (e) {}
-	
-	    if ('POST' === this.method) {
-	      try {
-	        if (this.isBinary) {
-	          xhr.setRequestHeader('Content-type', 'application/octet-stream');
-	        } else {
-	          xhr.setRequestHeader('Content-type', 'text/plain;charset=UTF-8');
-	        }
-	      } catch (e) {}
-	    }
-	
-	    try {
-	      xhr.setRequestHeader('Accept', '*/*');
-	    } catch (e) {}
-	
-	    // ie6 check
-	    if ('withCredentials' in xhr) {
-	      xhr.withCredentials = this.withCredentials;
-	    }
-	
-	    if (this.requestTimeout) {
-	      xhr.timeout = this.requestTimeout;
-	    }
-	
-	    if (this.hasXDR()) {
-	      xhr.onload = function () {
-	        self.onLoad();
-	      };
-	      xhr.onerror = function () {
-	        self.onError(xhr.responseText);
-	      };
-	    } else {
-	      xhr.onreadystatechange = function () {
-	        if (xhr.readyState === 2) {
-	          try {
-	            var contentType = xhr.getResponseHeader('Content-Type');
-	            if (self.supportsBinary && contentType === 'application/octet-stream' || contentType === 'application/octet-stream; charset=UTF-8') {
-	              xhr.responseType = 'arraybuffer';
-	            }
-	          } catch (e) {}
-	        }
-	        if (4 !== xhr.readyState) return;
-	        if (200 === xhr.status || 1223 === xhr.status) {
-	          self.onLoad();
-	        } else {
-	          // make sure the `error` event handler that's user-set
-	          // does not throw in the same tick and gets caught here
-	          setTimeout(function () {
-	            self.onError(typeof xhr.status === 'number' ? xhr.status : 0);
-	          }, 0);
-	        }
-	      };
-	    }
-	
-	    debug('xhr data %s', this.data);
-	    xhr.send(this.data);
-	  } catch (e) {
-	    // Need to defer since .create() is called directly fhrom the constructor
-	    // and thus the 'error' event can only be only bound *after* this exception
-	    // occurs.  Therefore, also, we cannot throw here at all.
-	    setTimeout(function () {
-	      self.onError(e);
-	    }, 0);
-	    return;
-	  }
-	
-	  if (typeof document !== 'undefined') {
-	    this.index = Request.requestsCount++;
-	    Request.requests[this.index] = this;
-	  }
-	};
-	
-	/**
-	 * Called upon successful response.
-	 *
-	 * @api private
-	 */
-	
-	Request.prototype.onSuccess = function () {
-	  this.emit('success');
-	  this.cleanup();
-	};
-	
-	/**
-	 * Called if we have data.
-	 *
-	 * @api private
-	 */
-	
-	Request.prototype.onData = function (data) {
-	  this.emit('data', data);
-	  this.onSuccess();
-	};
-	
-	/**
-	 * Called upon error.
-	 *
-	 * @api private
-	 */
-	
-	Request.prototype.onError = function (err) {
-	  this.emit('error', err);
-	  this.cleanup(true);
-	};
-	
-	/**
-	 * Cleans up house.
-	 *
-	 * @api private
-	 */
-	
-	Request.prototype.cleanup = function (fromError) {
-	  if ('undefined' === typeof this.xhr || null === this.xhr) {
-	    return;
-	  }
-	  // xmlhttprequest
-	  if (this.hasXDR()) {
-	    this.xhr.onload = this.xhr.onerror = empty;
-	  } else {
-	    this.xhr.onreadystatechange = empty;
-	  }
-	
-	  if (fromError) {
-	    try {
-	      this.xhr.abort();
-	    } catch (e) {}
-	  }
-	
-	  if (typeof document !== 'undefined') {
-	    delete Request.requests[this.index];
-	  }
-	
-	  this.xhr = null;
-	};
-	
-	/**
-	 * Called upon load.
-	 *
-	 * @api private
-	 */
-	
-	Request.prototype.onLoad = function () {
-	  var data;
-	  try {
-	    var contentType;
-	    try {
-	      contentType = this.xhr.getResponseHeader('Content-Type');
-	    } catch (e) {}
-	    if (contentType === 'application/octet-stream' || contentType === 'application/octet-stream; charset=UTF-8') {
-	      data = this.xhr.response || this.xhr.responseText;
-	    } else {
-	      data = this.xhr.responseText;
-	    }
-	  } catch (e) {
-	    this.onError(e);
-	  }
-	  if (null != data) {
-	    this.onData(data);
-	  }
-	};
-	
-	/**
-	 * Check if it has XDomainRequest.
-	 *
-	 * @api private
-	 */
-	
-	Request.prototype.hasXDR = function () {
-	  return typeof XDomainRequest !== 'undefined' && !this.xs && this.enablesXDR;
-	};
-	
-	/**
-	 * Aborts the request.
-	 *
-	 * @api public
-	 */
-	
-	Request.prototype.abort = function () {
-	  this.cleanup();
-	};
-	
-	/**
-	 * Aborts pending requests when unloading the window. This is needed to prevent
-	 * memory leaks (e.g. when using IE) and to ensure that no spurious error is
-	 * emitted.
-	 */
-	
-	Request.requestsCount = 0;
-	Request.requests = {};
-	
-	if (typeof document !== 'undefined') {
-	  if (typeof attachEvent === 'function') {
-	    attachEvent('onunload', unloadHandler);
-	  } else if (typeof addEventListener === 'function') {
-	    var terminationEvent = 'onpagehide' in self ? 'pagehide' : 'unload';
-	    addEventListener(terminationEvent, unloadHandler, false);
-	  }
-	}
-	
-	function unloadHandler () {
-	  for (var i in Request.requests) {
-	    if (Request.requests.hasOwnProperty(i)) {
-	      Request.requests[i].abort();
-	    }
-	  }
-	}
-
 
 /***/ }),
 /* 22 */
@@ -4357,433 +3939,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * Module dependencies.
 	 */
 	
-	var Transport = __webpack_require__(23);
-	var parseqs = __webpack_require__(32);
-	var parser = __webpack_require__(24);
-	var inherit = __webpack_require__(33);
-	var yeast = __webpack_require__(34);
-	var debug = __webpack_require__(3)('engine.io-client:polling');
-	
-	/**
-	 * Module exports.
-	 */
-	
-	module.exports = Polling;
-	
-	/**
-	 * Is XHR2 supported?
-	 */
-	
-	var hasXHR2 = (function () {
-	  var XMLHttpRequest = __webpack_require__(19);
-	  var xhr = new XMLHttpRequest({ xdomain: false });
-	  return null != xhr.responseType;
-	})();
-	
-	/**
-	 * Polling interface.
-	 *
-	 * @param {Object} opts
-	 * @api private
-	 */
-	
-	function Polling (opts) {
-	  var forceBase64 = (opts && opts.forceBase64);
-	  if (!hasXHR2 || forceBase64) {
-	    this.supportsBinary = false;
-	  }
-	  Transport.call(this, opts);
-	}
-	
-	/**
-	 * Inherits from Transport.
-	 */
-	
-	inherit(Polling, Transport);
-	
-	/**
-	 * Transport name.
-	 */
-	
-	Polling.prototype.name = 'polling';
-	
-	/**
-	 * Opens the socket (triggers polling). We write a PING message to determine
-	 * when the transport is open.
-	 *
-	 * @api private
-	 */
-	
-	Polling.prototype.doOpen = function () {
-	  this.poll();
-	};
-	
-	/**
-	 * Pauses polling.
-	 *
-	 * @param {Function} callback upon buffers are flushed and transport is paused
-	 * @api private
-	 */
-	
-	Polling.prototype.pause = function (onPause) {
-	  var self = this;
-	
-	  this.readyState = 'pausing';
-	
-	  function pause () {
-	    debug('paused');
-	    self.readyState = 'paused';
-	    onPause();
-	  }
-	
-	  if (this.polling || !this.writable) {
-	    var total = 0;
-	
-	    if (this.polling) {
-	      debug('we are currently polling - waiting to pause');
-	      total++;
-	      this.once('pollComplete', function () {
-	        debug('pre-pause polling complete');
-	        --total || pause();
-	      });
-	    }
-	
-	    if (!this.writable) {
-	      debug('we are currently writing - waiting to pause');
-	      total++;
-	      this.once('drain', function () {
-	        debug('pre-pause writing complete');
-	        --total || pause();
-	      });
-	    }
-	  } else {
-	    pause();
-	  }
-	};
-	
-	/**
-	 * Starts polling cycle.
-	 *
-	 * @api public
-	 */
-	
-	Polling.prototype.poll = function () {
-	  debug('polling');
-	  this.polling = true;
-	  this.doPoll();
-	  this.emit('poll');
-	};
-	
-	/**
-	 * Overloads onData to detect payloads.
-	 *
-	 * @api private
-	 */
-	
-	Polling.prototype.onData = function (data) {
-	  var self = this;
-	  debug('polling got data %s', data);
-	  var callback = function (packet, index, total) {
-	    // if its the first message we consider the transport open
-	    if ('opening' === self.readyState) {
-	      self.onOpen();
-	    }
-	
-	    // if its a close packet, we close the ongoing requests
-	    if ('close' === packet.type) {
-	      self.onClose();
-	      return false;
-	    }
-	
-	    // otherwise bypass onData and handle the message
-	    self.onPacket(packet);
-	  };
-	
-	  // decode payload
-	  parser.decodePayload(data, this.socket.binaryType, callback);
-	
-	  // if an event did not trigger closing
-	  if ('closed' !== this.readyState) {
-	    // if we got data we're not polling
-	    this.polling = false;
-	    this.emit('pollComplete');
-	
-	    if ('open' === this.readyState) {
-	      this.poll();
-	    } else {
-	      debug('ignoring poll - transport state "%s"', this.readyState);
-	    }
-	  }
-	};
-	
-	/**
-	 * For polling, send a close packet.
-	 *
-	 * @api private
-	 */
-	
-	Polling.prototype.doClose = function () {
-	  var self = this;
-	
-	  function close () {
-	    debug('writing close packet');
-	    self.write([{ type: 'close' }]);
-	  }
-	
-	  if ('open' === this.readyState) {
-	    debug('transport open - closing');
-	    close();
-	  } else {
-	    // in case we're trying to close while
-	    // handshaking is in progress (GH-164)
-	    debug('transport not open - deferring close');
-	    this.once('open', close);
-	  }
-	};
-	
-	/**
-	 * Writes a packets payload.
-	 *
-	 * @param {Array} data packets
-	 * @param {Function} drain callback
-	 * @api private
-	 */
-	
-	Polling.prototype.write = function (packets) {
-	  var self = this;
-	  this.writable = false;
-	  var callbackfn = function () {
-	    self.writable = true;
-	    self.emit('drain');
-	  };
-	
-	  parser.encodePayload(packets, this.supportsBinary, function (data) {
-	    self.doWrite(data, callbackfn);
-	  });
-	};
-	
-	/**
-	 * Generates uri for connection.
-	 *
-	 * @api private
-	 */
-	
-	Polling.prototype.uri = function () {
-	  var query = this.query || {};
-	  var schema = this.secure ? 'https' : 'http';
-	  var port = '';
-	
-	  // cache busting is forced
-	  if (false !== this.timestampRequests) {
-	    query[this.timestampParam] = yeast();
-	  }
-	
-	  if (!this.supportsBinary && !query.sid) {
-	    query.b64 = 1;
-	  }
-	
-	  query = parseqs.encode(query);
-	
-	  // avoid port if default for schema
-	  if (this.port && (('https' === schema && Number(this.port) !== 443) ||
-	     ('http' === schema && Number(this.port) !== 80))) {
-	    port = ':' + this.port;
-	  }
-	
-	  // prepend ? to query
-	  if (query.length) {
-	    query = '?' + query;
-	  }
-	
-	  var ipv6 = this.hostname.indexOf(':') !== -1;
-	  return schema + '://' + (ipv6 ? '[' + this.hostname + ']' : this.hostname) + port + this.path + query;
-	};
-
-
-/***/ }),
-/* 23 */
-/***/ (function(module, exports, __webpack_require__) {
-
-	/**
-	 * Module dependencies.
-	 */
-	
-	var parser = __webpack_require__(24);
-	var Emitter = __webpack_require__(11);
-	
-	/**
-	 * Module exports.
-	 */
-	
-	module.exports = Transport;
-	
-	/**
-	 * Transport abstract constructor.
-	 *
-	 * @param {Object} options.
-	 * @api private
-	 */
-	
-	function Transport (opts) {
-	  this.path = opts.path;
-	  this.hostname = opts.hostname;
-	  this.port = opts.port;
-	  this.secure = opts.secure;
-	  this.query = opts.query;
-	  this.timestampParam = opts.timestampParam;
-	  this.timestampRequests = opts.timestampRequests;
-	  this.readyState = '';
-	  this.agent = opts.agent || false;
-	  this.socket = opts.socket;
-	  this.enablesXDR = opts.enablesXDR;
-	  this.withCredentials = opts.withCredentials;
-	
-	  // SSL options for Node.js client
-	  this.pfx = opts.pfx;
-	  this.key = opts.key;
-	  this.passphrase = opts.passphrase;
-	  this.cert = opts.cert;
-	  this.ca = opts.ca;
-	  this.ciphers = opts.ciphers;
-	  this.rejectUnauthorized = opts.rejectUnauthorized;
-	  this.forceNode = opts.forceNode;
-	
-	  // results of ReactNative environment detection
-	  this.isReactNative = opts.isReactNative;
-	
-	  // other options for Node.js client
-	  this.extraHeaders = opts.extraHeaders;
-	  this.localAddress = opts.localAddress;
-	}
-	
-	/**
-	 * Mix in `Emitter`.
-	 */
-	
-	Emitter(Transport.prototype);
-	
-	/**
-	 * Emits an error.
-	 *
-	 * @param {String} str
-	 * @return {Transport} for chaining
-	 * @api public
-	 */
-	
-	Transport.prototype.onError = function (msg, desc) {
-	  var err = new Error(msg);
-	  err.type = 'TransportError';
-	  err.description = desc;
-	  this.emit('error', err);
-	  return this;
-	};
-	
-	/**
-	 * Opens the transport.
-	 *
-	 * @api public
-	 */
-	
-	Transport.prototype.open = function () {
-	  if ('closed' === this.readyState || '' === this.readyState) {
-	    this.readyState = 'opening';
-	    this.doOpen();
-	  }
-	
-	  return this;
-	};
-	
-	/**
-	 * Closes the transport.
-	 *
-	 * @api private
-	 */
-	
-	Transport.prototype.close = function () {
-	  if ('opening' === this.readyState || 'open' === this.readyState) {
-	    this.doClose();
-	    this.onClose();
-	  }
-	
-	  return this;
-	};
-	
-	/**
-	 * Sends multiple packets.
-	 *
-	 * @param {Array} packets
-	 * @api private
-	 */
-	
-	Transport.prototype.send = function (packets) {
-	  if ('open' === this.readyState) {
-	    this.write(packets);
-	  } else {
-	    throw new Error('Transport not open');
-	  }
-	};
-	
-	/**
-	 * Called upon open
-	 *
-	 * @api private
-	 */
-	
-	Transport.prototype.onOpen = function () {
-	  this.readyState = 'open';
-	  this.writable = true;
-	  this.emit('open');
-	};
-	
-	/**
-	 * Called with data.
-	 *
-	 * @param {String} data
-	 * @api private
-	 */
-	
-	Transport.prototype.onData = function (data) {
-	  var packet = parser.decodePacket(data, this.socket.binaryType);
-	  this.onPacket(packet);
-	};
-	
-	/**
-	 * Called with a decoded packet.
-	 */
-	
-	Transport.prototype.onPacket = function (packet) {
-	  this.emit('packet', packet);
-	};
-	
-	/**
-	 * Called upon close.
-	 *
-	 * @api private
-	 */
-	
-	Transport.prototype.onClose = function () {
-	  this.readyState = 'closed';
-	  this.emit('close');
-	};
-
-
-/***/ }),
-/* 24 */
-/***/ (function(module, exports, __webpack_require__) {
-
-	/**
-	 * Module dependencies.
-	 */
-	
-	var keys = __webpack_require__(25);
-	var hasBinary = __webpack_require__(26);
-	var sliceBuffer = __webpack_require__(27);
-	var after = __webpack_require__(28);
-	var utf8 = __webpack_require__(29);
+	var keys = __webpack_require__(23);
+	var hasBinary = __webpack_require__(24);
+	var sliceBuffer = __webpack_require__(25);
+	var after = __webpack_require__(26);
+	var utf8 = __webpack_require__(27);
 	
 	var base64encoder;
 	if (typeof ArrayBuffer !== 'undefined') {
-	  base64encoder = __webpack_require__(30);
+	  base64encoder = __webpack_require__(28);
 	}
 	
 	/**
@@ -4841,7 +4005,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * Create a blob api even for blob builder when vendor prefixes exist
 	 */
 	
-	var Blob = __webpack_require__(31);
+	var Blob = __webpack_require__(29);
 	
 	/**
 	 * Encodes a packet.
@@ -5379,7 +4543,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 25 */
+/* 23 */
 /***/ (function(module, exports) {
 
 	
@@ -5404,10 +4568,10 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 26 */
+/* 24 */
 /***/ (function(module, exports, __webpack_require__) {
 
-	/* global Blob File */
+	/* WEBPACK VAR INJECTION */(function(global) {/* global Blob File */
 	
 	/*
 	 * Module requirements.
@@ -5416,10 +4580,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	var isArray = __webpack_require__(13);
 	
 	var toString = Object.prototype.toString;
-	var withNativeBlob = typeof Blob === 'function' ||
-	                        typeof Blob !== 'undefined' && toString.call(Blob) === '[object BlobConstructor]';
-	var withNativeFile = typeof File === 'function' ||
-	                        typeof File !== 'undefined' && toString.call(File) === '[object FileConstructor]';
+	var withNativeBlob = typeof global.Blob === 'function' || toString.call(global.Blob) === '[object BlobConstructor]';
+	var withNativeFile = typeof global.File === 'function' || toString.call(global.File) === '[object FileConstructor]';
 	
 	/**
 	 * Module exports.
@@ -5450,11 +4612,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    return false;
 	  }
 	
-	  if ((typeof Buffer === 'function' && Buffer.isBuffer && Buffer.isBuffer(obj)) ||
-	    (typeof ArrayBuffer === 'function' && obj instanceof ArrayBuffer) ||
-	    (withNativeBlob && obj instanceof Blob) ||
-	    (withNativeFile && obj instanceof File)
-	  ) {
+	  if ((typeof global.Buffer === 'function' && global.Buffer.isBuffer && global.Buffer.isBuffer(obj)) ||
+	     (typeof global.ArrayBuffer === 'function' && obj instanceof ArrayBuffer) ||
+	     (withNativeBlob && obj instanceof Blob) ||
+	     (withNativeFile && obj instanceof File)
+	    ) {
 	    return true;
 	  }
 	
@@ -5471,10 +4633,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 	  return false;
 	}
-
+	
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ }),
-/* 27 */
+/* 25 */
 /***/ (function(module, exports) {
 
 	/**
@@ -5509,7 +4672,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 28 */
+/* 26 */
 /***/ (function(module, exports) {
 
 	module.exports = after
@@ -5543,7 +4706,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 29 */
+/* 27 */
 /***/ (function(module, exports) {
 
 	/*! https://mths.be/utf8js v2.1.2 by @mathias */
@@ -5759,7 +4922,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 30 */
+/* 28 */
 /***/ (function(module, exports) {
 
 	/*
@@ -5769,16 +4932,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * Copyright (c) 2012 Niklas von Hertzen
 	 * Licensed under the MIT license.
 	 */
-	(function(){
+	(function(chars){
 	  "use strict";
-	
-	  var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-	
-	  // Use a lookup table to find the index.
-	  var lookup = new Uint8Array(256);
-	  for (var i = 0; i < chars.length; i++) {
-	    lookup[chars.charCodeAt(i)] = i;
-	  }
 	
 	  exports.encode = function(arraybuffer) {
 	    var bytes = new Uint8Array(arraybuffer),
@@ -5816,10 +4971,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	    bytes = new Uint8Array(arraybuffer);
 	
 	    for (i = 0; i < len; i+=4) {
-	      encoded1 = lookup[base64.charCodeAt(i)];
-	      encoded2 = lookup[base64.charCodeAt(i+1)];
-	      encoded3 = lookup[base64.charCodeAt(i+2)];
-	      encoded4 = lookup[base64.charCodeAt(i+3)];
+	      encoded1 = chars.indexOf(base64[i]);
+	      encoded2 = chars.indexOf(base64[i+1]);
+	      encoded3 = chars.indexOf(base64[i+2]);
+	      encoded4 = chars.indexOf(base64[i+3]);
 	
 	      bytes[p++] = (encoded1 << 2) | (encoded2 >> 4);
 	      bytes[p++] = ((encoded2 & 15) << 4) | (encoded3 >> 2);
@@ -5828,11 +4983,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 	    return arraybuffer;
 	  };
-	})();
+	})("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
 
 
 /***/ }),
-/* 31 */
+/* 29 */
 /***/ (function(module, exports) {
 
 	/**
@@ -5938,7 +5093,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 32 */
+/* 30 */
 /***/ (function(module, exports) {
 
 	/**
@@ -5981,661 +5136,174 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 33 */
-/***/ (function(module, exports) {
-
-	
-	module.exports = function(a, b){
-	  var fn = function(){};
-	  fn.prototype = b.prototype;
-	  a.prototype = new fn;
-	  a.prototype.constructor = a;
-	};
-
-/***/ }),
-/* 34 */
-/***/ (function(module, exports) {
-
-	'use strict';
-	
-	var alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_'.split('')
-	  , length = 64
-	  , map = {}
-	  , seed = 0
-	  , i = 0
-	  , prev;
-	
-	/**
-	 * Return a string representing the specified number.
-	 *
-	 * @param {Number} num The number to convert.
-	 * @returns {String} The string representation of the number.
-	 * @api public
-	 */
-	function encode(num) {
-	  var encoded = '';
-	
-	  do {
-	    encoded = alphabet[num % length] + encoded;
-	    num = Math.floor(num / length);
-	  } while (num > 0);
-	
-	  return encoded;
-	}
-	
-	/**
-	 * Return the integer value specified by the given string.
-	 *
-	 * @param {String} str The string to convert.
-	 * @returns {Number} The integer value represented by the string.
-	 * @api public
-	 */
-	function decode(str) {
-	  var decoded = 0;
-	
-	  for (i = 0; i < str.length; i++) {
-	    decoded = decoded * length + map[str.charAt(i)];
-	  }
-	
-	  return decoded;
-	}
-	
-	/**
-	 * Yeast: A tiny growing id generator.
-	 *
-	 * @returns {String} A unique id.
-	 * @api public
-	 */
-	function yeast() {
-	  var now = encode(+new Date());
-	
-	  if (now !== prev) return seed = 0, prev = now;
-	  return now +'.'+ encode(seed++);
-	}
-	
-	//
-	// Map each character to its index.
-	//
-	for (; i < length; i++) map[alphabet[i]] = i;
-	
-	//
-	// Expose the `yeast`, `encode` and `decode` functions.
-	//
-	yeast.encode = encode;
-	yeast.decode = decode;
-	module.exports = yeast;
-
-
-/***/ }),
-/* 35 */
-/***/ (function(module, exports, __webpack_require__) {
-
-	/* WEBPACK VAR INJECTION */(function(global) {/**
-	 * Module requirements.
-	 */
-	
-	var Polling = __webpack_require__(22);
-	var inherit = __webpack_require__(33);
-	
-	/**
-	 * Module exports.
-	 */
-	
-	module.exports = JSONPPolling;
-	
-	/**
-	 * Cached regular expressions.
-	 */
-	
-	var rNewline = /\n/g;
-	var rEscapedNewline = /\\n/g;
-	
-	/**
-	 * Global JSONP callbacks.
-	 */
-	
-	var callbacks;
-	
-	/**
-	 * Noop.
-	 */
-	
-	function empty () { }
-	
-	/**
-	 * Until https://github.com/tc39/proposal-global is shipped.
-	 */
-	function glob () {
-	  return typeof self !== 'undefined' ? self
-	      : typeof window !== 'undefined' ? window
-	      : typeof global !== 'undefined' ? global : {};
-	}
-	
-	/**
-	 * JSONP Polling constructor.
-	 *
-	 * @param {Object} opts.
-	 * @api public
-	 */
-	
-	function JSONPPolling (opts) {
-	  Polling.call(this, opts);
-	
-	  this.query = this.query || {};
-	
-	  // define global callbacks array if not present
-	  // we do this here (lazily) to avoid unneeded global pollution
-	  if (!callbacks) {
-	    // we need to consider multiple engines in the same page
-	    var global = glob();
-	    callbacks = global.___eio = (global.___eio || []);
-	  }
-	
-	  // callback identifier
-	  this.index = callbacks.length;
-	
-	  // add callback to jsonp global
-	  var self = this;
-	  callbacks.push(function (msg) {
-	    self.onData(msg);
-	  });
-	
-	  // append to query string
-	  this.query.j = this.index;
-	
-	  // prevent spurious errors from being emitted when the window is unloaded
-	  if (typeof addEventListener === 'function') {
-	    addEventListener('beforeunload', function () {
-	      if (self.script) self.script.onerror = empty;
-	    }, false);
-	  }
-	}
-	
-	/**
-	 * Inherits from Polling.
-	 */
-	
-	inherit(JSONPPolling, Polling);
-	
-	/*
-	 * JSONP only supports binary as base64 encoded strings
-	 */
-	
-	JSONPPolling.prototype.supportsBinary = false;
-	
-	/**
-	 * Closes the socket.
-	 *
-	 * @api private
-	 */
-	
-	JSONPPolling.prototype.doClose = function () {
-	  if (this.script) {
-	    this.script.parentNode.removeChild(this.script);
-	    this.script = null;
-	  }
-	
-	  if (this.form) {
-	    this.form.parentNode.removeChild(this.form);
-	    this.form = null;
-	    this.iframe = null;
-	  }
-	
-	  Polling.prototype.doClose.call(this);
-	};
-	
-	/**
-	 * Starts a poll cycle.
-	 *
-	 * @api private
-	 */
-	
-	JSONPPolling.prototype.doPoll = function () {
-	  var self = this;
-	  var script = document.createElement('script');
-	
-	  if (this.script) {
-	    this.script.parentNode.removeChild(this.script);
-	    this.script = null;
-	  }
-	
-	  script.async = true;
-	  script.src = this.uri();
-	  script.onerror = function (e) {
-	    self.onError('jsonp poll error', e);
-	  };
-	
-	  var insertAt = document.getElementsByTagName('script')[0];
-	  if (insertAt) {
-	    insertAt.parentNode.insertBefore(script, insertAt);
-	  } else {
-	    (document.head || document.body).appendChild(script);
-	  }
-	  this.script = script;
-	
-	  var isUAgecko = 'undefined' !== typeof navigator && /gecko/i.test(navigator.userAgent);
-	
-	  if (isUAgecko) {
-	    setTimeout(function () {
-	      var iframe = document.createElement('iframe');
-	      document.body.appendChild(iframe);
-	      document.body.removeChild(iframe);
-	    }, 100);
-	  }
-	};
-	
-	/**
-	 * Writes with a hidden iframe.
-	 *
-	 * @param {String} data to send
-	 * @param {Function} called upon flush.
-	 * @api private
-	 */
-	
-	JSONPPolling.prototype.doWrite = function (data, fn) {
-	  var self = this;
-	
-	  if (!this.form) {
-	    var form = document.createElement('form');
-	    var area = document.createElement('textarea');
-	    var id = this.iframeId = 'eio_iframe_' + this.index;
-	    var iframe;
-	
-	    form.className = 'socketio';
-	    form.style.position = 'absolute';
-	    form.style.top = '-1000px';
-	    form.style.left = '-1000px';
-	    form.target = id;
-	    form.method = 'POST';
-	    form.setAttribute('accept-charset', 'utf-8');
-	    area.name = 'd';
-	    form.appendChild(area);
-	    document.body.appendChild(form);
-	
-	    this.form = form;
-	    this.area = area;
-	  }
-	
-	  this.form.action = this.uri();
-	
-	  function complete () {
-	    initIframe();
-	    fn();
-	  }
-	
-	  function initIframe () {
-	    if (self.iframe) {
-	      try {
-	        self.form.removeChild(self.iframe);
-	      } catch (e) {
-	        self.onError('jsonp polling iframe removal error', e);
-	      }
-	    }
-	
-	    try {
-	      // ie6 dynamic iframes with target="" support (thanks Chris Lambacher)
-	      var html = '<iframe src="javascript:0" name="' + self.iframeId + '">';
-	      iframe = document.createElement(html);
-	    } catch (e) {
-	      iframe = document.createElement('iframe');
-	      iframe.name = self.iframeId;
-	      iframe.src = 'javascript:0';
-	    }
-	
-	    iframe.id = self.iframeId;
-	
-	    self.form.appendChild(iframe);
-	    self.iframe = iframe;
-	  }
-	
-	  initIframe();
-	
-	  // escape \n to prevent it from being converted into \r\n by some UAs
-	  // double escaping is required for escaped new lines because unescaping of new lines can be done safely on server-side
-	  data = data.replace(rEscapedNewline, '\\\n');
-	  this.area.value = data.replace(rNewline, '\\n');
-	
-	  try {
-	    this.form.submit();
-	  } catch (e) {}
-	
-	  if (this.iframe.attachEvent) {
-	    this.iframe.onreadystatechange = function () {
-	      if (self.iframe.readyState === 'complete') {
-	        complete();
-	      }
-	    };
-	  } else {
-	    this.iframe.onload = complete;
-	  }
-	};
-	
-	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
-
-/***/ }),
-/* 36 */
+/* 31 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	/**
 	 * Module dependencies.
 	 */
 	
-	var Transport = __webpack_require__(23);
-	var parser = __webpack_require__(24);
-	var parseqs = __webpack_require__(32);
-	var inherit = __webpack_require__(33);
-	var yeast = __webpack_require__(34);
-	var debug = __webpack_require__(3)('engine.io-client:websocket');
-	
-	var BrowserWebSocket, NodeWebSocket;
-	
-	if (typeof WebSocket !== 'undefined') {
-	  BrowserWebSocket = WebSocket;
-	} else if (typeof self !== 'undefined') {
-	  BrowserWebSocket = self.WebSocket || self.MozWebSocket;
-	}
-	
-	if (typeof window === 'undefined') {
-	  try {
-	    NodeWebSocket = __webpack_require__(37);
-	  } catch (e) { }
-	}
-	
-	/**
-	 * Get either the `WebSocket` or `MozWebSocket` globals
-	 * in the browser or try to resolve WebSocket-compatible
-	 * interface exposed by `ws` for Node-like environment.
-	 */
-	
-	var WebSocketImpl = BrowserWebSocket || NodeWebSocket;
+	var parser = __webpack_require__(22);
+	var Emitter = __webpack_require__(11);
 	
 	/**
 	 * Module exports.
 	 */
 	
-	module.exports = WS;
+	module.exports = Transport;
 	
 	/**
-	 * WebSocket transport constructor.
+	 * Transport abstract constructor.
 	 *
-	 * @api {Object} connection options
-	 * @api public
+	 * @param {Object} options.
+	 * @api private
 	 */
 	
-	function WS (opts) {
-	  var forceBase64 = (opts && opts.forceBase64);
-	  if (forceBase64) {
-	    this.supportsBinary = false;
-	  }
-	  this.perMessageDeflate = opts.perMessageDeflate;
-	  this.usingBrowserWebSocket = BrowserWebSocket && !opts.forceNode;
-	  this.protocols = opts.protocols;
-	  if (!this.usingBrowserWebSocket) {
-	    WebSocketImpl = NodeWebSocket;
-	  }
-	  Transport.call(this, opts);
+	function Transport (opts) {
+	  this.path = opts.path;
+	  this.hostname = opts.hostname;
+	  this.port = opts.port;
+	  this.secure = opts.secure;
+	  this.query = opts.query;
+	  this.timestampParam = opts.timestampParam;
+	  this.timestampRequests = opts.timestampRequests;
+	  this.readyState = '';
+	  this.agent = opts.agent || false;
+	  this.socket = opts.socket;
+	  this.enablesXDR = opts.enablesXDR;
+	  this.withCredentials = opts.withCredentials;
+	
+	  // SSL options for Node.js client
+	  this.pfx = opts.pfx;
+	  this.key = opts.key;
+	  this.passphrase = opts.passphrase;
+	  this.cert = opts.cert;
+	  this.ca = opts.ca;
+	  this.ciphers = opts.ciphers;
+	  this.rejectUnauthorized = opts.rejectUnauthorized;
+	  this.forceNode = opts.forceNode;
+	
+	  // results of ReactNative environment detection
+	  this.isReactNative = opts.isReactNative;
+	
+	  // other options for Node.js client
+	  this.extraHeaders = opts.extraHeaders;
+	  this.localAddress = opts.localAddress;
 	}
 	
 	/**
-	 * Inherits from Transport.
+	 * Mix in `Emitter`.
 	 */
 	
-	inherit(WS, Transport);
+	Emitter(Transport.prototype);
 	
 	/**
-	 * Transport name.
+	 * Emits an error.
+	 *
+	 * @param {String} str
+	 * @return {Transport} for chaining
+	 * @api public
+	 */
+	
+	Transport.prototype.onError = function (msg, desc) {
+	  var err = new Error(msg);
+	  err.type = 'TransportError';
+	  err.description = desc;
+	  this.emit('error', err);
+	  return this;
+	};
+	
+	/**
+	 * Opens the transport.
 	 *
 	 * @api public
 	 */
 	
-	WS.prototype.name = 'websocket';
+	Transport.prototype.open = function () {
+	  if ('closed' === this.readyState || '' === this.readyState) {
+	    this.readyState = 'opening';
+	    this.doOpen();
+	  }
 	
-	/*
-	 * WebSockets support binary
-	 */
-	
-	WS.prototype.supportsBinary = true;
+	  return this;
+	};
 	
 	/**
-	 * Opens socket.
+	 * Closes the transport.
 	 *
 	 * @api private
 	 */
 	
-	WS.prototype.doOpen = function () {
-	  if (!this.check()) {
-	    // let probe timeout
-	    return;
+	Transport.prototype.close = function () {
+	  if ('opening' === this.readyState || 'open' === this.readyState) {
+	    this.doClose();
+	    this.onClose();
 	  }
 	
-	  var uri = this.uri();
-	  var protocols = this.protocols;
-	  var opts = {
-	    agent: this.agent,
-	    perMessageDeflate: this.perMessageDeflate
-	  };
+	  return this;
+	};
 	
-	  // SSL options for Node.js client
-	  opts.pfx = this.pfx;
-	  opts.key = this.key;
-	  opts.passphrase = this.passphrase;
-	  opts.cert = this.cert;
-	  opts.ca = this.ca;
-	  opts.ciphers = this.ciphers;
-	  opts.rejectUnauthorized = this.rejectUnauthorized;
-	  if (this.extraHeaders) {
-	    opts.headers = this.extraHeaders;
-	  }
-	  if (this.localAddress) {
-	    opts.localAddress = this.localAddress;
-	  }
+	/**
+	 * Sends multiple packets.
+	 *
+	 * @param {Array} packets
+	 * @api private
+	 */
 	
-	  try {
-	    this.ws =
-	      this.usingBrowserWebSocket && !this.isReactNative
-	        ? protocols
-	          ? new WebSocketImpl(uri, protocols)
-	          : new WebSocketImpl(uri)
-	        : new WebSocketImpl(uri, protocols, opts);
-	  } catch (err) {
-	    return this.emit('error', err);
-	  }
-	
-	  if (this.ws.binaryType === undefined) {
-	    this.supportsBinary = false;
-	  }
-	
-	  if (this.ws.supports && this.ws.supports.binary) {
-	    this.supportsBinary = true;
-	    this.ws.binaryType = 'nodebuffer';
+	Transport.prototype.send = function (packets) {
+	  if ('open' === this.readyState) {
+	    this.write(packets);
 	  } else {
-	    this.ws.binaryType = 'arraybuffer';
+	    throw new Error('Transport not open');
 	  }
-	
-	  this.addEventListeners();
 	};
 	
 	/**
-	 * Adds event listeners to the socket
+	 * Called upon open
 	 *
 	 * @api private
 	 */
 	
-	WS.prototype.addEventListeners = function () {
-	  var self = this;
-	
-	  this.ws.onopen = function () {
-	    self.onOpen();
-	  };
-	  this.ws.onclose = function () {
-	    self.onClose();
-	  };
-	  this.ws.onmessage = function (ev) {
-	    self.onData(ev.data);
-	  };
-	  this.ws.onerror = function (e) {
-	    self.onError('websocket error', e);
-	  };
+	Transport.prototype.onOpen = function () {
+	  this.readyState = 'open';
+	  this.writable = true;
+	  this.emit('open');
 	};
 	
 	/**
-	 * Writes data to socket.
+	 * Called with data.
 	 *
-	 * @param {Array} array of packets.
+	 * @param {String} data
 	 * @api private
 	 */
 	
-	WS.prototype.write = function (packets) {
-	  var self = this;
-	  this.writable = false;
-	
-	  // encodePacket efficient as it uses WS framing
-	  // no need for encodePayload
-	  var total = packets.length;
-	  for (var i = 0, l = total; i < l; i++) {
-	    (function (packet) {
-	      parser.encodePacket(packet, self.supportsBinary, function (data) {
-	        if (!self.usingBrowserWebSocket) {
-	          // always create a new object (GH-437)
-	          var opts = {};
-	          if (packet.options) {
-	            opts.compress = packet.options.compress;
-	          }
-	
-	          if (self.perMessageDeflate) {
-	            var len = 'string' === typeof data ? Buffer.byteLength(data) : data.length;
-	            if (len < self.perMessageDeflate.threshold) {
-	              opts.compress = false;
-	            }
-	          }
-	        }
-	
-	        // Sometimes the websocket has already been closed but the browser didn't
-	        // have a chance of informing us about it yet, in that case send will
-	        // throw an error
-	        try {
-	          if (self.usingBrowserWebSocket) {
-	            // TypeError is thrown when passing the second argument on Safari
-	            self.ws.send(data);
-	          } else {
-	            self.ws.send(data, opts);
-	          }
-	        } catch (e) {
-	          debug('websocket closed before onclose event');
-	        }
-	
-	        --total || done();
-	      });
-	    })(packets[i]);
-	  }
-	
-	  function done () {
-	    self.emit('flush');
-	
-	    // fake drain
-	    // defer to next tick to allow Socket to clear writeBuffer
-	    setTimeout(function () {
-	      self.writable = true;
-	      self.emit('drain');
-	    }, 0);
-	  }
+	Transport.prototype.onData = function (data) {
+	  var packet = parser.decodePacket(data, this.socket.binaryType);
+	  this.onPacket(packet);
 	};
 	
 	/**
-	 * Called upon close
+	 * Called with a decoded packet.
+	 */
+	
+	Transport.prototype.onPacket = function (packet) {
+	  this.emit('packet', packet);
+	};
+	
+	/**
+	 * Called upon close.
 	 *
 	 * @api private
 	 */
 	
-	WS.prototype.onClose = function () {
-	  Transport.prototype.onClose.call(this);
-	};
-	
-	/**
-	 * Closes socket.
-	 *
-	 * @api private
-	 */
-	
-	WS.prototype.doClose = function () {
-	  if (typeof this.ws !== 'undefined') {
-	    this.ws.close();
-	  }
-	};
-	
-	/**
-	 * Generates uri for connection.
-	 *
-	 * @api private
-	 */
-	
-	WS.prototype.uri = function () {
-	  var query = this.query || {};
-	  var schema = this.secure ? 'wss' : 'ws';
-	  var port = '';
-	
-	  // avoid port if default for schema
-	  if (this.port && (('wss' === schema && Number(this.port) !== 443) ||
-	    ('ws' === schema && Number(this.port) !== 80))) {
-	    port = ':' + this.port;
-	  }
-	
-	  // append timestamp to URI
-	  if (this.timestampRequests) {
-	    query[this.timestampParam] = yeast();
-	  }
-	
-	  // communicate binary support capabilities
-	  if (!this.supportsBinary) {
-	    query.b64 = 1;
-	  }
-	
-	  query = parseqs.encode(query);
-	
-	  // prepend ? to query
-	  if (query.length) {
-	    query = '?' + query;
-	  }
-	
-	  var ipv6 = this.hostname.indexOf(':') !== -1;
-	  return schema + '://' + (ipv6 ? '[' + this.hostname + ']' : this.hostname) + port + this.path + query;
-	};
-	
-	/**
-	 * Feature detection for WebSocket.
-	 *
-	 * @return {Boolean} whether this transport is available.
-	 * @api public
-	 */
-	
-	WS.prototype.check = function () {
-	  return !!WebSocketImpl && !('__initialize' in WebSocketImpl && this.name === WS.prototype.name);
+	Transport.prototype.onClose = function () {
+	  this.readyState = 'closed';
+	  this.emit('close');
 	};
 
 
 /***/ }),
-/* 37 */
-/***/ (function(module, exports) {
-
-	/* (ignored) */
-
-/***/ }),
-/* 38 */
-/***/ (function(module, exports) {
-
-	
-	var indexOf = [].indexOf;
-	
-	module.exports = function(arr, obj){
-	  if (indexOf) return arr.indexOf(obj);
-	  for (var i = 0; i < arr.length; ++i) {
-	    if (arr[i] === obj) return i;
-	  }
-	  return -1;
-	};
-
-/***/ }),
-/* 39 */
+/* 32 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	
@@ -6645,12 +5313,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 	var parser = __webpack_require__(7);
 	var Emitter = __webpack_require__(11);
-	var toArray = __webpack_require__(40);
-	var on = __webpack_require__(41);
-	var bind = __webpack_require__(42);
+	var toArray = __webpack_require__(33);
+	var on = __webpack_require__(34);
+	var bind = __webpack_require__(35);
 	var debug = __webpack_require__(3)('socket.io-client:socket');
-	var parseqs = __webpack_require__(32);
-	var hasBin = __webpack_require__(26);
+	var parseqs = __webpack_require__(30);
+	var hasBin = __webpack_require__(24);
 	
 	/**
 	 * Module exports.
@@ -7079,7 +5747,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 40 */
+/* 33 */
 /***/ (function(module, exports) {
 
 	module.exports = toArray
@@ -7098,7 +5766,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 41 */
+/* 34 */
 /***/ (function(module, exports) {
 
 	
@@ -7128,7 +5796,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 42 */
+/* 35 */
 /***/ (function(module, exports) {
 
 	/**
@@ -7157,7 +5825,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 43 */
+/* 36 */
 /***/ (function(module, exports) {
 
 	
