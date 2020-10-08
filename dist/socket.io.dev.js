@@ -147,7 +147,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	 */
 	
 	exports.Manager = __webpack_require__(15);
-	exports.Socket = __webpack_require__(32);
+	exports.Socket = __webpack_require__(34);
 
 
 /***/ }),
@@ -2455,14 +2455,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	 */
 	
 	var eio = __webpack_require__(16);
-	var Socket = __webpack_require__(32);
+	var Socket = __webpack_require__(34);
 	var Emitter = __webpack_require__(11);
 	var parser = __webpack_require__(7);
-	var on = __webpack_require__(34);
-	var bind = __webpack_require__(35);
+	var on = __webpack_require__(36);
+	var bind = __webpack_require__(37);
 	var debug = __webpack_require__(3)('socket.io-client:manager');
-	var indexOf = __webpack_require__(21);
-	var Backoff = __webpack_require__(36);
+	var indexOf = __webpack_require__(33);
+	var Backoff = __webpack_require__(38);
 	
 	/**
 	 * IE6+ hasOwnProperty
@@ -3037,7 +3037,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * @api public
 	 *
 	 */
-	module.exports.parser = __webpack_require__(22);
+	module.exports.parser = __webpack_require__(21);
 
 
 /***/ }),
@@ -3051,10 +3051,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	var transports = __webpack_require__(18);
 	var Emitter = __webpack_require__(11);
 	var debug = __webpack_require__(3)('engine.io-client:socket');
-	var index = __webpack_require__(21);
-	var parser = __webpack_require__(22);
+	var index = __webpack_require__(33);
+	var parser = __webpack_require__(21);
 	var parseuri = __webpack_require__(2);
-	var parseqs = __webpack_require__(30);
+	var parseqs = __webpack_require__(29);
 	
 	/**
 	 * Module exports.
@@ -3190,9 +3190,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	 */
 	
 	Socket.Socket = Socket;
-	Socket.Transport = __webpack_require__(31);
+	Socket.Transport = __webpack_require__(20);
 	Socket.transports = __webpack_require__(18);
-	Socket.parser = __webpack_require__(22);
+	Socket.parser = __webpack_require__(21);
 	
 	/**
 	 * Creates transport of the given type.
@@ -3802,7 +3802,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * Module dependencies
 	 */
 	
-	var XMLHttpRequest = __webpack_require__(19);
+	var websocket = __webpack_require__(19);
 	
 	/**
 	 * Export transports.
@@ -3854,100 +3854,487 @@ return /******/ (function(modules) { // webpackBootstrap
 /* 19 */
 /***/ (function(module, exports, __webpack_require__) {
 
-	// browser shim for xmlhttprequest module
+	/**
+	 * Module dependencies.
+	 */
 	
-	var hasCORS = __webpack_require__(20);
+	var Transport = __webpack_require__(20);
+	var parser = __webpack_require__(21);
+	var parseqs = __webpack_require__(29);
+	var inherit = __webpack_require__(30);
+	var yeast = __webpack_require__(31);
+	var debug = __webpack_require__(3)('engine.io-client:websocket');
 	
-	module.exports = function (opts) {
-	  var xdomain = opts.xdomain;
+	var BrowserWebSocket, NodeWebSocket;
 	
-	  // scheme must be same when usign XDomainRequest
-	  // http://blogs.msdn.com/b/ieinternals/archive/2010/05/13/xdomainrequest-restrictions-limitations-and-workarounds.aspx
-	  var xscheme = opts.xscheme;
+	if (typeof WebSocket !== 'undefined') {
+	  BrowserWebSocket = WebSocket;
+	} else if (typeof self !== 'undefined') {
+	  BrowserWebSocket = self.WebSocket || self.MozWebSocket;
+	}
 	
-	  // XDomainRequest has a flow of not sending cookie, therefore it should be disabled as a default.
-	  // https://github.com/Automattic/engine.io-client/pull/217
-	  var enablesXDR = opts.enablesXDR;
-	
-	  // XMLHttpRequest can be disabled on IE
+	if (typeof window === 'undefined') {
 	  try {
-	    if ('undefined' !== typeof XMLHttpRequest && (!xdomain || hasCORS)) {
-	      return new XMLHttpRequest();
-	    }
+	    NodeWebSocket = __webpack_require__(32);
 	  } catch (e) { }
+	}
 	
-	  // Use XDomainRequest for IE8 if enablesXDR is true
-	  // because loading bar keeps flashing when using jsonp-polling
-	  // https://github.com/yujiosaka/socke.io-ie8-loading-example
-	  try {
-	    if ('undefined' !== typeof XDomainRequest && !xscheme && enablesXDR) {
-	      return new XDomainRequest();
-	    }
-	  } catch (e) { }
+	/**
+	 * Get either the `WebSocket` or `MozWebSocket` globals
+	 * in the browser or try to resolve WebSocket-compatible
+	 * interface exposed by `ws` for Node-like environment.
+	 */
 	
-	  if (!xdomain) {
-	    try {
-	      return new self[['Active'].concat('Object').join('X')]('Microsoft.XMLHTTP');
-	    } catch (e) { }
+	var WebSocketImpl = BrowserWebSocket || NodeWebSocket;
+	
+	/**
+	 * Module exports.
+	 */
+	
+	module.exports = WS;
+	
+	/**
+	 * WebSocket transport constructor.
+	 *
+	 * @api {Object} connection options
+	 * @api public
+	 */
+	
+	function WS (opts) {
+	  var forceBase64 = (opts && opts.forceBase64);
+	  if (forceBase64) {
+	    this.supportsBinary = false;
 	  }
+	  this.perMessageDeflate = opts.perMessageDeflate;
+	  this.usingBrowserWebSocket = BrowserWebSocket && !opts.forceNode;
+	  this.protocols = opts.protocols;
+	  if (!this.usingBrowserWebSocket) {
+	    WebSocketImpl = NodeWebSocket;
+	  }
+	  Transport.call(this, opts);
+	}
+	
+	/**
+	 * Inherits from Transport.
+	 */
+	
+	inherit(WS, Transport);
+	
+	/**
+	 * Transport name.
+	 *
+	 * @api public
+	 */
+	
+	WS.prototype.name = 'websocket';
+	
+	/*
+	 * WebSockets support binary
+	 */
+	
+	WS.prototype.supportsBinary = true;
+	
+	/**
+	 * Opens socket.
+	 *
+	 * @api private
+	 */
+	
+	WS.prototype.doOpen = function () {
+	  if (!this.check()) {
+	    // let probe timeout
+	    return;
+	  }
+	
+	  var uri = this.uri();
+	  var protocols = this.protocols;
+	  var opts = {
+	    agent: this.agent,
+	    perMessageDeflate: this.perMessageDeflate
+	  };
+	
+	  // SSL options for Node.js client
+	  opts.pfx = this.pfx;
+	  opts.key = this.key;
+	  opts.passphrase = this.passphrase;
+	  opts.cert = this.cert;
+	  opts.ca = this.ca;
+	  opts.ciphers = this.ciphers;
+	  opts.rejectUnauthorized = this.rejectUnauthorized;
+	  if (this.extraHeaders) {
+	    opts.headers = this.extraHeaders;
+	  }
+	  if (this.localAddress) {
+	    opts.localAddress = this.localAddress;
+	  }
+	
+	  try {
+	    this.ws =
+	      this.usingBrowserWebSocket && !this.isReactNative
+	        ? protocols
+	          ? new WebSocketImpl(uri, protocols)
+	          : new WebSocketImpl(uri)
+	        : new WebSocketImpl(uri, protocols, opts);
+	  } catch (err) {
+	    return this.emit('error', err);
+	  }
+	
+	  if (this.ws.binaryType === undefined) {
+	    this.supportsBinary = false;
+	  }
+	
+	  if (this.ws.supports && this.ws.supports.binary) {
+	    this.supportsBinary = true;
+	    this.ws.binaryType = 'nodebuffer';
+	  } else {
+	    this.ws.binaryType = 'arraybuffer';
+	  }
+	
+	  this.addEventListeners();
+	};
+	
+	/**
+	 * Adds event listeners to the socket
+	 *
+	 * @api private
+	 */
+	
+	WS.prototype.addEventListeners = function () {
+	  var self = this;
+	
+	  this.ws.onopen = function () {
+	    self.onOpen();
+	  };
+	  this.ws.onclose = function () {
+	    self.onClose();
+	  };
+	  this.ws.onmessage = function (ev) {
+	    self.onData(ev.data);
+	  };
+	  this.ws.onerror = function (e) {
+	    self.onError('websocket error', e);
+	  };
+	};
+	
+	/**
+	 * Writes data to socket.
+	 *
+	 * @param {Array} array of packets.
+	 * @api private
+	 */
+	
+	WS.prototype.write = function (packets) {
+	  var self = this;
+	  this.writable = false;
+	
+	  // encodePacket efficient as it uses WS framing
+	  // no need for encodePayload
+	  var total = packets.length;
+	  for (var i = 0, l = total; i < l; i++) {
+	    (function (packet) {
+	      parser.encodePacket(packet, self.supportsBinary, function (data) {
+	        if (!self.usingBrowserWebSocket) {
+	          // always create a new object (GH-437)
+	          var opts = {};
+	          if (packet.options) {
+	            opts.compress = packet.options.compress;
+	          }
+	
+	          if (self.perMessageDeflate) {
+	            var len = 'string' === typeof data ? Buffer.byteLength(data) : data.length;
+	            if (len < self.perMessageDeflate.threshold) {
+	              opts.compress = false;
+	            }
+	          }
+	        }
+	
+	        // Sometimes the websocket has already been closed but the browser didn't
+	        // have a chance of informing us about it yet, in that case send will
+	        // throw an error
+	        try {
+	          if (self.usingBrowserWebSocket) {
+	            // TypeError is thrown when passing the second argument on Safari
+	            self.ws.send(data);
+	          } else {
+	            self.ws.send(data, opts);
+	          }
+	        } catch (e) {
+	          debug('websocket closed before onclose event');
+	        }
+	
+	        --total || done();
+	      });
+	    })(packets[i]);
+	  }
+	
+	  function done () {
+	    self.emit('flush');
+	
+	    // fake drain
+	    // defer to next tick to allow Socket to clear writeBuffer
+	    setTimeout(function () {
+	      self.writable = true;
+	      self.emit('drain');
+	    }, 0);
+	  }
+	};
+	
+	/**
+	 * Called upon close
+	 *
+	 * @api private
+	 */
+	
+	WS.prototype.onClose = function () {
+	  Transport.prototype.onClose.call(this);
+	};
+	
+	/**
+	 * Closes socket.
+	 *
+	 * @api private
+	 */
+	
+	WS.prototype.doClose = function () {
+	  if (typeof this.ws !== 'undefined') {
+	    this.ws.close();
+	  }
+	};
+	
+	/**
+	 * Generates uri for connection.
+	 *
+	 * @api private
+	 */
+	
+	WS.prototype.uri = function () {
+	  var query = this.query || {};
+	  var schema = this.secure ? 'wss' : 'ws';
+	  var port = '';
+	
+	  // avoid port if default for schema
+	  if (this.port && (('wss' === schema && Number(this.port) !== 443) ||
+	    ('ws' === schema && Number(this.port) !== 80))) {
+	    port = ':' + this.port;
+	  }
+	
+	  // append timestamp to URI
+	  if (this.timestampRequests) {
+	    query[this.timestampParam] = yeast();
+	  }
+	
+	  // communicate binary support capabilities
+	  if (!this.supportsBinary) {
+	    query.b64 = 1;
+	  }
+	
+	  query = parseqs.encode(query);
+	
+	  // prepend ? to query
+	  if (query.length) {
+	    query = '?' + query;
+	  }
+	
+	  var ipv6 = this.hostname.indexOf(':') !== -1;
+	  return schema + '://' + (ipv6 ? '[' + this.hostname + ']' : this.hostname) + port + this.path + query;
+	};
+	
+	/**
+	 * Feature detection for WebSocket.
+	 *
+	 * @return {Boolean} whether this transport is available.
+	 * @api public
+	 */
+	
+	WS.prototype.check = function () {
+	  return !!WebSocketImpl && !('__initialize' in WebSocketImpl && this.name === WS.prototype.name);
 	};
 
 
 /***/ }),
 /* 20 */
-/***/ (function(module, exports) {
-
-	
-	/**
-	 * Module exports.
-	 *
-	 * Logic borrowed from Modernizr:
-	 *
-	 *   - https://github.com/Modernizr/Modernizr/blob/master/feature-detects/cors.js
-	 */
-	
-	try {
-	  module.exports = typeof XMLHttpRequest !== 'undefined' &&
-	    'withCredentials' in new XMLHttpRequest();
-	} catch (err) {
-	  // if XMLHttp support is disabled in IE then it will throw
-	  // when trying to create
-	  module.exports = false;
-	}
-
-
-/***/ }),
-/* 21 */
-/***/ (function(module, exports) {
-
-	
-	var indexOf = [].indexOf;
-	
-	module.exports = function(arr, obj){
-	  if (indexOf) return arr.indexOf(obj);
-	  for (var i = 0; i < arr.length; ++i) {
-	    if (arr[i] === obj) return i;
-	  }
-	  return -1;
-	};
-
-/***/ }),
-/* 22 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	/**
 	 * Module dependencies.
 	 */
 	
-	var keys = __webpack_require__(23);
-	var hasBinary = __webpack_require__(24);
-	var sliceBuffer = __webpack_require__(25);
-	var after = __webpack_require__(26);
-	var utf8 = __webpack_require__(27);
+	var parser = __webpack_require__(21);
+	var Emitter = __webpack_require__(11);
+	
+	/**
+	 * Module exports.
+	 */
+	
+	module.exports = Transport;
+	
+	/**
+	 * Transport abstract constructor.
+	 *
+	 * @param {Object} options.
+	 * @api private
+	 */
+	
+	function Transport (opts) {
+	  this.path = opts.path;
+	  this.hostname = opts.hostname;
+	  this.port = opts.port;
+	  this.secure = opts.secure;
+	  this.query = opts.query;
+	  this.timestampParam = opts.timestampParam;
+	  this.timestampRequests = opts.timestampRequests;
+	  this.readyState = '';
+	  this.agent = opts.agent || false;
+	  this.socket = opts.socket;
+	  this.enablesXDR = opts.enablesXDR;
+	  this.withCredentials = opts.withCredentials;
+	
+	  // SSL options for Node.js client
+	  this.pfx = opts.pfx;
+	  this.key = opts.key;
+	  this.passphrase = opts.passphrase;
+	  this.cert = opts.cert;
+	  this.ca = opts.ca;
+	  this.ciphers = opts.ciphers;
+	  this.rejectUnauthorized = opts.rejectUnauthorized;
+	  this.forceNode = opts.forceNode;
+	
+	  // results of ReactNative environment detection
+	  this.isReactNative = opts.isReactNative;
+	
+	  // other options for Node.js client
+	  this.extraHeaders = opts.extraHeaders;
+	  this.localAddress = opts.localAddress;
+	}
+	
+	/**
+	 * Mix in `Emitter`.
+	 */
+	
+	Emitter(Transport.prototype);
+	
+	/**
+	 * Emits an error.
+	 *
+	 * @param {String} str
+	 * @return {Transport} for chaining
+	 * @api public
+	 */
+	
+	Transport.prototype.onError = function (msg, desc) {
+	  var err = new Error(msg);
+	  err.type = 'TransportError';
+	  err.description = desc;
+	  this.emit('error', err);
+	  return this;
+	};
+	
+	/**
+	 * Opens the transport.
+	 *
+	 * @api public
+	 */
+	
+	Transport.prototype.open = function () {
+	  if ('closed' === this.readyState || '' === this.readyState) {
+	    this.readyState = 'opening';
+	    this.doOpen();
+	  }
+	
+	  return this;
+	};
+	
+	/**
+	 * Closes the transport.
+	 *
+	 * @api private
+	 */
+	
+	Transport.prototype.close = function () {
+	  if ('opening' === this.readyState || 'open' === this.readyState) {
+	    this.doClose();
+	    this.onClose();
+	  }
+	
+	  return this;
+	};
+	
+	/**
+	 * Sends multiple packets.
+	 *
+	 * @param {Array} packets
+	 * @api private
+	 */
+	
+	Transport.prototype.send = function (packets) {
+	  if ('open' === this.readyState) {
+	    this.write(packets);
+	  } else {
+	    throw new Error('Transport not open');
+	  }
+	};
+	
+	/**
+	 * Called upon open
+	 *
+	 * @api private
+	 */
+	
+	Transport.prototype.onOpen = function () {
+	  this.readyState = 'open';
+	  this.writable = true;
+	  this.emit('open');
+	};
+	
+	/**
+	 * Called with data.
+	 *
+	 * @param {String} data
+	 * @api private
+	 */
+	
+	Transport.prototype.onData = function (data) {
+	  var packet = parser.decodePacket(data, this.socket.binaryType);
+	  this.onPacket(packet);
+	};
+	
+	/**
+	 * Called with a decoded packet.
+	 */
+	
+	Transport.prototype.onPacket = function (packet) {
+	  this.emit('packet', packet);
+	};
+	
+	/**
+	 * Called upon close.
+	 *
+	 * @api private
+	 */
+	
+	Transport.prototype.onClose = function () {
+	  this.readyState = 'closed';
+	  this.emit('close');
+	};
+
+
+/***/ }),
+/* 21 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	/**
+	 * Module dependencies.
+	 */
+	
+	var keys = __webpack_require__(22);
+	var hasBinary = __webpack_require__(23);
+	var sliceBuffer = __webpack_require__(24);
+	var after = __webpack_require__(25);
+	var utf8 = __webpack_require__(26);
 	
 	var base64encoder;
 	if (typeof ArrayBuffer !== 'undefined') {
-	  base64encoder = __webpack_require__(28);
+	  base64encoder = __webpack_require__(27);
 	}
 	
 	/**
@@ -4005,7 +4392,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * Create a blob api even for blob builder when vendor prefixes exist
 	 */
 	
-	var Blob = __webpack_require__(29);
+	var Blob = __webpack_require__(28);
 	
 	/**
 	 * Encodes a packet.
@@ -4543,7 +4930,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 23 */
+/* 22 */
 /***/ (function(module, exports) {
 
 	
@@ -4568,7 +4955,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 24 */
+/* 23 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {/* global Blob File */
@@ -4637,7 +5024,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ }),
-/* 25 */
+/* 24 */
 /***/ (function(module, exports) {
 
 	/**
@@ -4672,7 +5059,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 26 */
+/* 25 */
 /***/ (function(module, exports) {
 
 	module.exports = after
@@ -4706,7 +5093,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 27 */
+/* 26 */
 /***/ (function(module, exports) {
 
 	/*! https://mths.be/utf8js v2.1.2 by @mathias */
@@ -4922,7 +5309,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 28 */
+/* 27 */
 /***/ (function(module, exports) {
 
 	/*
@@ -4987,7 +5374,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 29 */
+/* 28 */
 /***/ (function(module, exports) {
 
 	/**
@@ -5093,7 +5480,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 30 */
+/* 29 */
 /***/ (function(module, exports) {
 
 	/**
@@ -5136,174 +5523,114 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 31 */
-/***/ (function(module, exports, __webpack_require__) {
+/* 30 */
+/***/ (function(module, exports) {
 
+	
+	module.exports = function(a, b){
+	  var fn = function(){};
+	  fn.prototype = b.prototype;
+	  a.prototype = new fn;
+	  a.prototype.constructor = a;
+	};
+
+/***/ }),
+/* 31 */
+/***/ (function(module, exports) {
+
+	'use strict';
+	
+	var alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_'.split('')
+	  , length = 64
+	  , map = {}
+	  , seed = 0
+	  , i = 0
+	  , prev;
+	
 	/**
-	 * Module dependencies.
-	 */
-	
-	var parser = __webpack_require__(22);
-	var Emitter = __webpack_require__(11);
-	
-	/**
-	 * Module exports.
-	 */
-	
-	module.exports = Transport;
-	
-	/**
-	 * Transport abstract constructor.
+	 * Return a string representing the specified number.
 	 *
-	 * @param {Object} options.
-	 * @api private
+	 * @param {Number} num The number to convert.
+	 * @returns {String} The string representation of the number.
+	 * @api public
 	 */
+	function encode(num) {
+	  var encoded = '';
 	
-	function Transport (opts) {
-	  this.path = opts.path;
-	  this.hostname = opts.hostname;
-	  this.port = opts.port;
-	  this.secure = opts.secure;
-	  this.query = opts.query;
-	  this.timestampParam = opts.timestampParam;
-	  this.timestampRequests = opts.timestampRequests;
-	  this.readyState = '';
-	  this.agent = opts.agent || false;
-	  this.socket = opts.socket;
-	  this.enablesXDR = opts.enablesXDR;
-	  this.withCredentials = opts.withCredentials;
+	  do {
+	    encoded = alphabet[num % length] + encoded;
+	    num = Math.floor(num / length);
+	  } while (num > 0);
 	
-	  // SSL options for Node.js client
-	  this.pfx = opts.pfx;
-	  this.key = opts.key;
-	  this.passphrase = opts.passphrase;
-	  this.cert = opts.cert;
-	  this.ca = opts.ca;
-	  this.ciphers = opts.ciphers;
-	  this.rejectUnauthorized = opts.rejectUnauthorized;
-	  this.forceNode = opts.forceNode;
-	
-	  // results of ReactNative environment detection
-	  this.isReactNative = opts.isReactNative;
-	
-	  // other options for Node.js client
-	  this.extraHeaders = opts.extraHeaders;
-	  this.localAddress = opts.localAddress;
+	  return encoded;
 	}
 	
 	/**
-	 * Mix in `Emitter`.
-	 */
-	
-	Emitter(Transport.prototype);
-	
-	/**
-	 * Emits an error.
+	 * Return the integer value specified by the given string.
 	 *
-	 * @param {String} str
-	 * @return {Transport} for chaining
+	 * @param {String} str The string to convert.
+	 * @returns {Number} The integer value represented by the string.
 	 * @api public
 	 */
+	function decode(str) {
+	  var decoded = 0;
 	
-	Transport.prototype.onError = function (msg, desc) {
-	  var err = new Error(msg);
-	  err.type = 'TransportError';
-	  err.description = desc;
-	  this.emit('error', err);
-	  return this;
-	};
+	  for (i = 0; i < str.length; i++) {
+	    decoded = decoded * length + map[str.charAt(i)];
+	  }
+	
+	  return decoded;
+	}
 	
 	/**
-	 * Opens the transport.
+	 * Yeast: A tiny growing id generator.
 	 *
+	 * @returns {String} A unique id.
 	 * @api public
 	 */
+	function yeast() {
+	  var now = encode(+new Date());
 	
-	Transport.prototype.open = function () {
-	  if ('closed' === this.readyState || '' === this.readyState) {
-	    this.readyState = 'opening';
-	    this.doOpen();
-	  }
+	  if (now !== prev) return seed = 0, prev = now;
+	  return now +'.'+ encode(seed++);
+	}
 	
-	  return this;
-	};
+	//
+	// Map each character to its index.
+	//
+	for (; i < length; i++) map[alphabet[i]] = i;
 	
-	/**
-	 * Closes the transport.
-	 *
-	 * @api private
-	 */
-	
-	Transport.prototype.close = function () {
-	  if ('opening' === this.readyState || 'open' === this.readyState) {
-	    this.doClose();
-	    this.onClose();
-	  }
-	
-	  return this;
-	};
-	
-	/**
-	 * Sends multiple packets.
-	 *
-	 * @param {Array} packets
-	 * @api private
-	 */
-	
-	Transport.prototype.send = function (packets) {
-	  if ('open' === this.readyState) {
-	    this.write(packets);
-	  } else {
-	    throw new Error('Transport not open');
-	  }
-	};
-	
-	/**
-	 * Called upon open
-	 *
-	 * @api private
-	 */
-	
-	Transport.prototype.onOpen = function () {
-	  this.readyState = 'open';
-	  this.writable = true;
-	  this.emit('open');
-	};
-	
-	/**
-	 * Called with data.
-	 *
-	 * @param {String} data
-	 * @api private
-	 */
-	
-	Transport.prototype.onData = function (data) {
-	  var packet = parser.decodePacket(data, this.socket.binaryType);
-	  this.onPacket(packet);
-	};
-	
-	/**
-	 * Called with a decoded packet.
-	 */
-	
-	Transport.prototype.onPacket = function (packet) {
-	  this.emit('packet', packet);
-	};
-	
-	/**
-	 * Called upon close.
-	 *
-	 * @api private
-	 */
-	
-	Transport.prototype.onClose = function () {
-	  this.readyState = 'closed';
-	  this.emit('close');
-	};
+	//
+	// Expose the `yeast`, `encode` and `decode` functions.
+	//
+	yeast.encode = encode;
+	yeast.decode = decode;
+	module.exports = yeast;
 
 
 /***/ }),
 /* 32 */
+/***/ (function(module, exports) {
+
+	/* (ignored) */
+
+/***/ }),
+/* 33 */
+/***/ (function(module, exports) {
+
+	
+	var indexOf = [].indexOf;
+	
+	module.exports = function(arr, obj){
+	  if (indexOf) return arr.indexOf(obj);
+	  for (var i = 0; i < arr.length; ++i) {
+	    if (arr[i] === obj) return i;
+	  }
+	  return -1;
+	};
+
+/***/ }),
+/* 34 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	
@@ -5313,12 +5640,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 	var parser = __webpack_require__(7);
 	var Emitter = __webpack_require__(11);
-	var toArray = __webpack_require__(33);
-	var on = __webpack_require__(34);
-	var bind = __webpack_require__(35);
+	var toArray = __webpack_require__(35);
+	var on = __webpack_require__(36);
+	var bind = __webpack_require__(37);
 	var debug = __webpack_require__(3)('socket.io-client:socket');
-	var parseqs = __webpack_require__(30);
-	var hasBin = __webpack_require__(24);
+	var parseqs = __webpack_require__(29);
+	var hasBin = __webpack_require__(23);
 	
 	/**
 	 * Module exports.
@@ -5747,7 +6074,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 33 */
+/* 35 */
 /***/ (function(module, exports) {
 
 	module.exports = toArray
@@ -5766,7 +6093,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 34 */
+/* 36 */
 /***/ (function(module, exports) {
 
 	
@@ -5796,7 +6123,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 35 */
+/* 37 */
 /***/ (function(module, exports) {
 
 	/**
@@ -5825,7 +6152,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ }),
-/* 36 */
+/* 38 */
 /***/ (function(module, exports) {
 
 	
