@@ -19,7 +19,7 @@
     "base64-arraybuffer": "0.1.5",
     "component-bind": "1.0.0",
     "component-emitter": "1.2.1",
-    "engine.io-client": "git+https://github.com/crisp-dev/engine.io-client.git#c72dfbca7cd29b36ab796506066bd524b894b654",
+    "engine.io-client": "git+https://github.com/crisp-dev/engine.io-client.git#1c469b5b32c0e5fa178f08d89a3a10cd50bff595",
     "debug": "4.1.0",
     "has-binary2": "1.0.2",
     "has-cors": "1.1.0",
