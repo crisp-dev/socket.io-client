@@ -1,8 +1,5 @@
-import {
-  Socket as Engine,
-  SocketOptions as EngineOptions,
-  installTimerFunctions,
-} from "engine.io-client";
+// @ts-ignore
+import { Socket as Engine, SocketOptions as EngineOptions, installTimerFunctions,} from "engine.io-client";
 import { Socket, SocketOptions } from "./socket.js";
 import * as parser from "socket.io-parser";
 import { Decoder, Encoder, Packet } from "socket.io-parser";
@@ -357,6 +354,7 @@ export class Manager<
         socket.emit("error", new Error("timeout"));
       }, timeout);
 
+      // @ts-ignore
       if (this.opts.autoUnref) {
         timer.unref();
       }
@@ -593,6 +591,7 @@ export class Manager<
         });
       }, delay);
 
+      // @ts-ignore
       if (this.opts.autoUnref) {
         timer.unref();
       }

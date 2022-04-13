@@ -109,6 +109,61 @@
     }
   }
 
+  function _construct(Parent, args, Class) {
+    if (_isNativeReflectConstruct()) {
+      _construct = Reflect.construct;
+    } else {
+      _construct = function _construct(Parent, args, Class) {
+        var a = [null];
+        a.push.apply(a, args);
+        var Constructor = Function.bind.apply(Parent, a);
+        var instance = new Constructor();
+        if (Class) _setPrototypeOf(instance, Class.prototype);
+        return instance;
+      };
+    }
+
+    return _construct.apply(null, arguments);
+  }
+
+  function _isNativeFunction(fn) {
+    return Function.toString.call(fn).indexOf("[native code]") !== -1;
+  }
+
+  function _wrapNativeSuper(Class) {
+    var _cache = typeof Map === "function" ? new Map() : undefined;
+
+    _wrapNativeSuper = function _wrapNativeSuper(Class) {
+      if (Class === null || !_isNativeFunction(Class)) return Class;
+
+      if (typeof Class !== "function") {
+        throw new TypeError("Super expression must either be null or a function");
+      }
+
+      if (typeof _cache !== "undefined") {
+        if (_cache.has(Class)) return _cache.get(Class);
+
+        _cache.set(Class, Wrapper);
+      }
+
+      function Wrapper() {
+        return _construct(Class, arguments, _getPrototypeOf(this).constructor);
+      }
+
+      Wrapper.prototype = Object.create(Class.prototype, {
+        constructor: {
+          value: Wrapper,
+          enumerable: false,
+          writable: true,
+          configurable: true
+        }
+      });
+      return _setPrototypeOf(Wrapper, Class);
+    };
+
+    return _wrapNativeSuper(Class);
+  }
+
   function _assertThisInitialized(self) {
     if (self === void 0) {
       throw new ReferenceError("this hasn't been initialised - super() hasn't been called");
@@ -256,8 +311,8 @@
    * @author Steven Levithan <stevenlevithan.com> (MIT license)
    * @api private
    */
-  var re = /^(?:(?![^:@]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
-  var parts = ['source', 'protocol', 'authority', 'userInfo', 'user', 'password', 'host', 'port', 'relative', 'path', 'directory', 'file', 'query', 'anchor'];
+  var re$1 = /^(?:(?![^:@]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
+  var parts$1 = ['source', 'protocol', 'authority', 'userInfo', 'user', 'password', 'host', 'port', 'relative', 'path', 'directory', 'file', 'query', 'anchor'];
 
   var parseuri = function parseuri(str) {
     var src = str,
@@ -268,12 +323,12 @@
       str = str.substring(0, b) + str.substring(b, e).replace(/:/g, ';') + str.substring(e, str.length);
     }
 
-    var m = re.exec(str || ''),
+    var m = re$1.exec(str || ''),
         uri = {},
         i = 14;
 
     while (i--) {
-      uri[parts[i]] = m[i] || '';
+      uri[parts$1[i]] = m[i] || '';
     }
 
     if (b != -1 && e != -1) {
@@ -283,12 +338,12 @@
       uri.ipv6uri = true;
     }
 
-    uri.pathNames = pathNames(uri, uri['path']);
-    uri.queryKey = queryKey(uri, uri['query']);
+    uri.pathNames = pathNames$1(uri, uri['path']);
+    uri.queryKey = queryKey$1(uri, uri['query']);
     return uri;
   };
 
-  function pathNames(obj, path) {
+  function pathNames$1(obj, path) {
     var regx = /\/{2,9}/g,
         names = path.replace(regx, "/").split("/");
 
@@ -303,7 +358,7 @@
     return names;
   }
 
-  function queryKey(uri, query) {
+  function queryKey$1(uri, query) {
     var data = {};
     query.replace(/(?:^|&)([^&=]*)=?([^&]*)/g, function ($0, $1, $2) {
       if ($1) {
@@ -371,78 +426,169 @@
     return obj;
   }
 
-  var hasCors = {exports: {}};
+  var PACKET_TYPES = Object.create(null); // no Map = no polyfill
 
-  /**
-   * Module exports.
-   *
-   * Logic borrowed from Modernizr:
-   *
-   *   - https://github.com/Modernizr/Modernizr/blob/master/feature-detects/cors.js
+  PACKET_TYPES["open"] = "0";
+  PACKET_TYPES["close"] = "1";
+  PACKET_TYPES["ping"] = "2";
+  PACKET_TYPES["pong"] = "3";
+  PACKET_TYPES["message"] = "4";
+  PACKET_TYPES["upgrade"] = "5";
+  PACKET_TYPES["noop"] = "6";
+  var PACKET_TYPES_REVERSE = Object.create(null);
+  Object.keys(PACKET_TYPES).forEach(function (key) {
+    PACKET_TYPES_REVERSE[PACKET_TYPES[key]] = key;
+  });
+  var ERROR_PACKET = {
+    type: "error",
+    data: "parser error"
+  };
+
+  var withNativeBlob$1 = typeof Blob === "function" || typeof Blob !== "undefined" && Object.prototype.toString.call(Blob) === "[object BlobConstructor]";
+  var withNativeArrayBuffer$2 = typeof ArrayBuffer === "function"; // ArrayBuffer.isView method is not defined in IE10
+
+  var isView$1 = function isView(obj) {
+    return typeof ArrayBuffer.isView === "function" ? ArrayBuffer.isView(obj) : obj && obj.buffer instanceof ArrayBuffer;
+  };
+
+  var encodePacket = function encodePacket(_ref, supportsBinary, callback) {
+    var type = _ref.type,
+        data = _ref.data;
+
+    if (withNativeBlob$1 && data instanceof Blob) {
+      if (supportsBinary) {
+        return callback(data);
+      } else {
+        return encodeBlobAsBase64(data, callback);
+      }
+    } else if (withNativeArrayBuffer$2 && (data instanceof ArrayBuffer || isView$1(data))) {
+      if (supportsBinary) {
+        return callback(data);
+      } else {
+        return encodeBlobAsBase64(new Blob([data]), callback);
+      }
+    } // plain string
+
+
+    return callback(PACKET_TYPES[type] + (data || ""));
+  };
+
+  var encodeBlobAsBase64 = function encodeBlobAsBase64(data, callback) {
+    var fileReader = new FileReader();
+
+    fileReader.onload = function () {
+      var content = fileReader.result.split(",")[1];
+      callback("b" + content);
+    };
+
+    return fileReader.readAsDataURL(data);
+  };
+
+  /*
+   * base64-arraybuffer 1.0.1 <https://github.com/niklasvh/base64-arraybuffer>
+   * Copyright (c) 2022 Niklas von Hertzen <https://hertzen.com>
+   * Released under MIT License
    */
+  var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'; // Use a lookup table to find the index.
 
-  try {
-    hasCors.exports = typeof XMLHttpRequest !== 'undefined' && 'withCredentials' in new XMLHttpRequest();
-  } catch (err) {
-    // if XMLHttp support is disabled in IE then it will throw
-    // when trying to create
-    hasCors.exports = false;
+  var lookup$1 = typeof Uint8Array === 'undefined' ? [] : new Uint8Array(256);
+
+  for (var i$1 = 0; i$1 < chars.length; i$1++) {
+    lookup$1[chars.charCodeAt(i$1)] = i$1;
   }
 
-  var hasCORS = hasCors.exports;
+  var decode$1 = function decode(base64) {
+    var bufferLength = base64.length * 0.75,
+        len = base64.length,
+        i,
+        p = 0,
+        encoded1,
+        encoded2,
+        encoded3,
+        encoded4;
 
-  var globalThis = (function () {
-    if (typeof self !== "undefined") {
-      return self;
-    } else if (typeof window !== "undefined") {
-      return window;
-    } else {
-      return Function("return this")();
-    }
-  })();
+    if (base64[base64.length - 1] === '=') {
+      bufferLength--;
 
-  // browser shim for xmlhttprequest module
-  function XMLHttpRequest$1 (opts) {
-    var xdomain = opts.xdomain; // XMLHttpRequest can be disabled on IE
-
-    try {
-      if ("undefined" !== typeof XMLHttpRequest && (!xdomain || hasCORS)) {
-        return new XMLHttpRequest();
+      if (base64[base64.length - 2] === '=') {
+        bufferLength--;
       }
-    } catch (e) {}
-
-    if (!xdomain) {
-      try {
-        return new globalThis[["Active"].concat("Object").join("X")]("Microsoft.XMLHTTP");
-      } catch (e) {}
-    }
-  }
-
-  function pick(obj) {
-    for (var _len = arguments.length, attr = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-      attr[_key - 1] = arguments[_key];
     }
 
-    return attr.reduce(function (acc, k) {
-      if (obj.hasOwnProperty(k)) {
-        acc[k] = obj[k];
-      }
+    var arraybuffer = new ArrayBuffer(bufferLength),
+        bytes = new Uint8Array(arraybuffer);
 
-      return acc;
-    }, {});
-  } // Keep a reference to the real timeout functions so they can be used when overridden
+    for (i = 0; i < len; i += 4) {
+      encoded1 = lookup$1[base64.charCodeAt(i)];
+      encoded2 = lookup$1[base64.charCodeAt(i + 1)];
+      encoded3 = lookup$1[base64.charCodeAt(i + 2)];
+      encoded4 = lookup$1[base64.charCodeAt(i + 3)];
+      bytes[p++] = encoded1 << 2 | encoded2 >> 4;
+      bytes[p++] = (encoded2 & 15) << 4 | encoded3 >> 2;
+      bytes[p++] = (encoded3 & 3) << 6 | encoded4 & 63;
+    }
 
-  var NATIVE_SET_TIMEOUT = setTimeout;
-  var NATIVE_CLEAR_TIMEOUT = clearTimeout;
-  function installTimerFunctions(obj, opts) {
-    if (opts.useNativeTimers) {
-      obj.setTimeoutFn = NATIVE_SET_TIMEOUT.bind(globalThis);
-      obj.clearTimeoutFn = NATIVE_CLEAR_TIMEOUT.bind(globalThis);
+    return arraybuffer;
+  };
+
+  var withNativeArrayBuffer$1 = typeof ArrayBuffer === "function";
+
+  var decodePacket = function decodePacket(encodedPacket, binaryType) {
+    if (typeof encodedPacket !== "string") {
+      return {
+        type: "message",
+        data: mapBinary(encodedPacket, binaryType)
+      };
+    }
+
+    var type = encodedPacket.charAt(0);
+
+    if (type === "b") {
+      return {
+        type: "message",
+        data: decodeBase64Packet(encodedPacket.substring(1), binaryType)
+      };
+    }
+
+    var packetType = PACKET_TYPES_REVERSE[type];
+
+    if (!packetType) {
+      return ERROR_PACKET;
+    }
+
+    return encodedPacket.length > 1 ? {
+      type: PACKET_TYPES_REVERSE[type],
+      data: encodedPacket.substring(1)
+    } : {
+      type: PACKET_TYPES_REVERSE[type]
+    };
+  };
+
+  var decodeBase64Packet = function decodeBase64Packet(data, binaryType) {
+    if (withNativeArrayBuffer$1) {
+      var decoded = decode$1(data);
+      return mapBinary(decoded, binaryType);
     } else {
-      obj.setTimeoutFn = setTimeout.bind(globalThis);
-      obj.clearTimeoutFn = clearTimeout.bind(globalThis);
+      return {
+        base64: true,
+        data: data
+      }; // fallback for old browsers
     }
-  }
+  };
+
+  var mapBinary = function mapBinary(data, binaryType) {
+    switch (binaryType) {
+      case "blob":
+        return data instanceof ArrayBuffer ? new Blob([data]) : data;
+
+      case "arraybuffer":
+      default:
+        return data;
+      // assuming the data is already an ArrayBuffer
+    }
+  };
+
+  var protocol$1 = 4;
 
   /**
    * Expose `Emitter`.
@@ -614,209 +760,99 @@
     return !!this.listeners(event).length;
   };
 
-  var PACKET_TYPES = Object.create(null); // no Map = no polyfill
+  var globalThis = (function () {
+    if (typeof self !== "undefined") {
+      return self;
+    } else if (typeof window !== "undefined") {
+      return window;
+    } else {
+      return Function("return this")();
+    }
+  })();
 
-  PACKET_TYPES["open"] = "0";
-  PACKET_TYPES["close"] = "1";
-  PACKET_TYPES["ping"] = "2";
-  PACKET_TYPES["pong"] = "3";
-  PACKET_TYPES["message"] = "4";
-  PACKET_TYPES["upgrade"] = "5";
-  PACKET_TYPES["noop"] = "6";
-  var PACKET_TYPES_REVERSE = Object.create(null);
-  Object.keys(PACKET_TYPES).forEach(function (key) {
-    PACKET_TYPES_REVERSE[PACKET_TYPES[key]] = key;
-  });
-  var ERROR_PACKET = {
-    type: "error",
-    data: "parser error"
-  };
+  function pick(obj) {
+    for (var _len = arguments.length, attr = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+      attr[_key - 1] = arguments[_key];
+    }
 
-  var withNativeBlob$1 = typeof Blob === "function" || typeof Blob !== "undefined" && Object.prototype.toString.call(Blob) === "[object BlobConstructor]";
-  var withNativeArrayBuffer$2 = typeof ArrayBuffer === "function"; // ArrayBuffer.isView method is not defined in IE10
-
-  var isView$1 = function isView(obj) {
-    return typeof ArrayBuffer.isView === "function" ? ArrayBuffer.isView(obj) : obj && obj.buffer instanceof ArrayBuffer;
-  };
-
-  var encodePacket = function encodePacket(_ref, supportsBinary, callback) {
-    var type = _ref.type,
-        data = _ref.data;
-
-    if (withNativeBlob$1 && data instanceof Blob) {
-      if (supportsBinary) {
-        return callback(data);
-      } else {
-        return encodeBlobAsBase64(data, callback);
+    return attr.reduce(function (acc, k) {
+      if (obj.hasOwnProperty(k)) {
+        acc[k] = obj[k];
       }
-    } else if (withNativeArrayBuffer$2 && (data instanceof ArrayBuffer || isView$1(data))) {
-      if (supportsBinary) {
-        return callback(data);
-      } else {
-        return encodeBlobAsBase64(new Blob([data]), callback);
-      }
-    } // plain string
+
+      return acc;
+    }, {});
+  } // Keep a reference to the real timeout functions so they can be used when overridden
+
+  var NATIVE_SET_TIMEOUT = setTimeout;
+  var NATIVE_CLEAR_TIMEOUT = clearTimeout;
+  function installTimerFunctions(obj, opts) {
+    if (opts.useNativeTimers) {
+      obj.setTimeoutFn = NATIVE_SET_TIMEOUT.bind(globalThis);
+      obj.clearTimeoutFn = NATIVE_CLEAR_TIMEOUT.bind(globalThis);
+    } else {
+      obj.setTimeoutFn = setTimeout.bind(globalThis);
+      obj.clearTimeoutFn = clearTimeout.bind(globalThis);
+    }
+  } // base64 encoded buffers are about 33% bigger (https://en.wikipedia.org/wiki/Base64)
+
+  var BASE64_OVERHEAD = 1.33; // we could also have used `new Blob([obj]).size`, but it isn't supported in IE9
+
+  function byteLength(obj) {
+    if (typeof obj === "string") {
+      return utf8Length(obj);
+    } // arraybuffer or blob
 
 
-    return callback(PACKET_TYPES[type] + (data || ""));
-  };
-
-  var encodeBlobAsBase64 = function encodeBlobAsBase64(data, callback) {
-    var fileReader = new FileReader();
-
-    fileReader.onload = function () {
-      var content = fileReader.result.split(",")[1];
-      callback("b" + content);
-    };
-
-    return fileReader.readAsDataURL(data);
-  };
-
-  /*
-   * base64-arraybuffer 1.0.1 <https://github.com/niklasvh/base64-arraybuffer>
-   * Copyright (c) 2021 Niklas von Hertzen <https://hertzen.com>
-   * Released under MIT License
-   */
-  var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'; // Use a lookup table to find the index.
-
-  var lookup$1 = typeof Uint8Array === 'undefined' ? [] : new Uint8Array(256);
-
-  for (var i$1 = 0; i$1 < chars.length; i$1++) {
-    lookup$1[chars.charCodeAt(i$1)] = i$1;
+    return Math.ceil((obj.byteLength || obj.size) * BASE64_OVERHEAD);
   }
 
-  var decode$1 = function decode(base64) {
-    var bufferLength = base64.length * 0.75,
-        len = base64.length,
-        i,
-        p = 0,
-        encoded1,
-        encoded2,
-        encoded3,
-        encoded4;
+  function utf8Length(str) {
+    var c = 0,
+        length = 0;
 
-    if (base64[base64.length - 1] === '=') {
-      bufferLength--;
+    for (var i = 0, l = str.length; i < l; i++) {
+      c = str.charCodeAt(i);
 
-      if (base64[base64.length - 2] === '=') {
-        bufferLength--;
+      if (c < 0x80) {
+        length += 1;
+      } else if (c < 0x800) {
+        length += 2;
+      } else if (c < 0xd800 || c >= 0xe000) {
+        length += 3;
+      } else {
+        i++;
+        length += 4;
       }
     }
 
-    var arraybuffer = new ArrayBuffer(bufferLength),
-        bytes = new Uint8Array(arraybuffer);
+    return length;
+  }
 
-    for (i = 0; i < len; i += 4) {
-      encoded1 = lookup$1[base64.charCodeAt(i)];
-      encoded2 = lookup$1[base64.charCodeAt(i + 1)];
-      encoded3 = lookup$1[base64.charCodeAt(i + 2)];
-      encoded4 = lookup$1[base64.charCodeAt(i + 3)];
-      bytes[p++] = encoded1 << 2 | encoded2 >> 4;
-      bytes[p++] = (encoded2 & 15) << 4 | encoded3 >> 2;
-      bytes[p++] = (encoded3 & 3) << 6 | encoded4 & 63;
+  var TransportError = /*#__PURE__*/function (_Error) {
+    _inherits(TransportError, _Error);
+
+    var _super = _createSuper(TransportError);
+
+    function TransportError(reason, description, context) {
+      var _this;
+
+      _classCallCheck(this, TransportError);
+
+      _this = _super.call(this, reason);
+      _this.description = description;
+      _this.context = context;
+      _this.type = "TransportError";
+      return _this;
     }
 
-    return arraybuffer;
-  };
-
-  var withNativeArrayBuffer$1 = typeof ArrayBuffer === "function";
-
-  var decodePacket = function decodePacket(encodedPacket, binaryType) {
-    if (typeof encodedPacket !== "string") {
-      return {
-        type: "message",
-        data: mapBinary(encodedPacket, binaryType)
-      };
-    }
-
-    var type = encodedPacket.charAt(0);
-
-    if (type === "b") {
-      return {
-        type: "message",
-        data: decodeBase64Packet(encodedPacket.substring(1), binaryType)
-      };
-    }
-
-    var packetType = PACKET_TYPES_REVERSE[type];
-
-    if (!packetType) {
-      return ERROR_PACKET;
-    }
-
-    return encodedPacket.length > 1 ? {
-      type: PACKET_TYPES_REVERSE[type],
-      data: encodedPacket.substring(1)
-    } : {
-      type: PACKET_TYPES_REVERSE[type]
-    };
-  };
-
-  var decodeBase64Packet = function decodeBase64Packet(data, binaryType) {
-    if (withNativeArrayBuffer$1) {
-      var decoded = decode$1(data);
-      return mapBinary(decoded, binaryType);
-    } else {
-      return {
-        base64: true,
-        data: data
-      }; // fallback for old browsers
-    }
-  };
-
-  var mapBinary = function mapBinary(data, binaryType) {
-    switch (binaryType) {
-      case "blob":
-        return data instanceof ArrayBuffer ? new Blob([data]) : data;
-
-      case "arraybuffer":
-      default:
-        return data;
-      // assuming the data is already an ArrayBuffer
-    }
-  };
-
-  var SEPARATOR = String.fromCharCode(30); // see https://en.wikipedia.org/wiki/Delimiter#ASCII_delimited_text
-
-  var encodePayload = function encodePayload(packets, callback) {
-    // some packets may be added to the array while encoding, so the initial length must be saved
-    var length = packets.length;
-    var encodedPackets = new Array(length);
-    var count = 0;
-    packets.forEach(function (packet, i) {
-      // force base64 encoding for binary packets
-      encodePacket(packet, false, function (encodedPacket) {
-        encodedPackets[i] = encodedPacket;
-
-        if (++count === length) {
-          callback(encodedPackets.join(SEPARATOR));
-        }
-      });
-    });
-  };
-
-  var decodePayload = function decodePayload(encodedPayload, binaryType) {
-    var encodedPackets = encodedPayload.split(SEPARATOR);
-    var packets = [];
-
-    for (var i = 0; i < encodedPackets.length; i++) {
-      var decodedPacket = decodePacket(encodedPackets[i], binaryType);
-      packets.push(decodedPacket);
-
-      if (decodedPacket.type === "error") {
-        break;
-      }
-    }
-
-    return packets;
-  };
-
-  var protocol$1 = 4;
+    return TransportError;
+  }( /*#__PURE__*/_wrapNativeSuper(Error));
 
   var Transport = /*#__PURE__*/function (_Emitter) {
     _inherits(Transport, _Emitter);
 
-    var _super = _createSuper(Transport);
+    var _super2 = _createSuper(Transport);
 
     /**
      * Transport abstract constructor.
@@ -825,23 +861,25 @@
      * @api private
      */
     function Transport(opts) {
-      var _this;
+      var _this2;
 
       _classCallCheck(this, Transport);
 
-      _this = _super.call(this);
-      _this.writable = false;
-      installTimerFunctions(_assertThisInitialized(_this), opts);
-      _this.opts = opts;
-      _this.query = opts.query;
-      _this.readyState = "";
-      _this.socket = opts.socket;
-      return _this;
+      _this2 = _super2.call(this);
+      _this2.writable = false;
+      installTimerFunctions(_assertThisInitialized(_this2), opts);
+      _this2.opts = opts;
+      _this2.query = opts.query;
+      _this2.readyState = "";
+      _this2.socket = opts.socket;
+      return _this2;
     }
     /**
      * Emits an error.
      *
-     * @param {String} str
+     * @param {String} reason
+     * @param description
+     * @param context - the error context
      * @return {Transport} for chaining
      * @api protected
      */
@@ -849,14 +887,8 @@
 
     _createClass(Transport, [{
       key: "onError",
-      value: function onError(msg, desc) {
-        var err = new Error(msg); // @ts-ignore
-
-        err.type = "TransportError"; // @ts-ignore
-
-        err.description = desc;
-
-        _get(_getPrototypeOf(Transport.prototype), "emit", this).call(this, "error", err);
+      value: function onError(reason, description, context) {
+        _get(_getPrototypeOf(Transport.prototype), "emitReserved", this).call(this, "error", new TransportError(reason, description, context));
 
         return this;
       }
@@ -918,7 +950,7 @@
         this.readyState = "open";
         this.writable = true;
 
-        _get(_getPrototypeOf(Transport.prototype), "emit", this).call(this, "open");
+        _get(_getPrototypeOf(Transport.prototype), "emitReserved", this).call(this, "open");
       }
       /**
        * Called with data.
@@ -942,7 +974,7 @@
     }, {
       key: "onPacket",
       value: function onPacket(packet) {
-        _get(_getPrototypeOf(Transport.prototype), "emit", this).call(this, "packet", packet);
+        _get(_getPrototypeOf(Transport.prototype), "emitReserved", this).call(this, "packet", packet);
       }
       /**
        * Called upon close.
@@ -952,20 +984,62 @@
 
     }, {
       key: "onClose",
-      value: function onClose() {
+      value: function onClose(details) {
         this.readyState = "closed";
 
-        _get(_getPrototypeOf(Transport.prototype), "emit", this).call(this, "close");
+        _get(_getPrototypeOf(Transport.prototype), "emitReserved", this).call(this, "close", details);
       }
     }]);
 
     return Transport;
   }(Emitter_1);
 
+  // imported from https://github.com/galkn/querystring
+
+  /**
+   * Compiles a querystring
+   * Returns string representation of the object
+   *
+   * @param {Object}
+   * @api private
+   */
+  function encode$1(obj) {
+    var str = '';
+
+    for (var i in obj) {
+      if (obj.hasOwnProperty(i)) {
+        if (str.length) str += '&';
+        str += encodeURIComponent(i) + '=' + encodeURIComponent(obj[i]);
+      }
+    }
+
+    return str;
+  }
+  /**
+   * Parses a simple querystring into an object
+   *
+   * @param {String} qs
+   * @api private
+   */
+
+  function decode(qs) {
+    var qry = {};
+    var pairs = qs.split('&');
+
+    for (var i = 0, l = pairs.length; i < l; i++) {
+      var pair = pairs[i].split('=');
+      qry[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+    }
+
+    return qry;
+  }
+
+  // imported from https://github.com/unshiftio/yeast
+
   var alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_'.split(''),
       length = 64,
-      map = {},
-      seed = 0,
+      map = {};
+  var seed = 0,
       i = 0,
       prev;
   /**
@@ -987,30 +1061,11 @@
     return encoded;
   }
   /**
-   * Return the integer value specified by the given string.
-   *
-   * @param {String} str The string to convert.
-   * @returns {Number} The integer value represented by the string.
-   * @api public
-   */
-
-
-  function decode(str) {
-    var decoded = 0;
-
-    for (i = 0; i < str.length; i++) {
-      decoded = decoded * length + map[str.charAt(i)];
-    }
-
-    return decoded;
-  }
-  /**
    * Yeast: A tiny growing id generator.
    *
    * @returns {String} A unique id.
    * @api public
    */
-
 
   function yeast() {
     var now = encode(+new Date());
@@ -1020,613 +1075,8 @@
   // Map each character to its index.
   //
 
-
   for (; i < length; i++) {
     map[alphabet[i]] = i;
-  } //
-  // Expose the `yeast`, `encode` and `decode` functions.
-  //
-
-
-  yeast.encode = encode;
-  yeast.decode = decode;
-  var yeast_1 = yeast;
-
-  var parseqs = {};
-
-  /**
-   * Compiles a querystring
-   * Returns string representation of the object
-   *
-   * @param {Object}
-   * @api private
-   */
-
-  parseqs.encode = function (obj) {
-    var str = '';
-
-    for (var i in obj) {
-      if (obj.hasOwnProperty(i)) {
-        if (str.length) str += '&';
-        str += encodeURIComponent(i) + '=' + encodeURIComponent(obj[i]);
-      }
-    }
-
-    return str;
-  };
-  /**
-   * Parses a simple querystring into an object
-   *
-   * @param {String} qs
-   * @api private
-   */
-
-
-  parseqs.decode = function (qs) {
-    var qry = {};
-    var pairs = qs.split('&');
-
-    for (var i = 0, l = pairs.length; i < l; i++) {
-      var pair = pairs[i].split('=');
-      qry[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
-    }
-
-    return qry;
-  };
-
-  var Polling = /*#__PURE__*/function (_Transport) {
-    _inherits(Polling, _Transport);
-
-    var _super = _createSuper(Polling);
-
-    function Polling() {
-      var _this;
-
-      _classCallCheck(this, Polling);
-
-      _this = _super.apply(this, arguments);
-      _this.polling = false;
-      return _this;
-    }
-    /**
-     * Transport name.
-     */
-
-
-    _createClass(Polling, [{
-      key: "name",
-      get: function get() {
-        return "polling";
-      }
-      /**
-       * Opens the socket (triggers polling). We write a PING message to determine
-       * when the transport is open.
-       *
-       * @api private
-       */
-
-    }, {
-      key: "doOpen",
-      value: function doOpen() {
-        this.poll();
-      }
-      /**
-       * Pauses polling.
-       *
-       * @param {Function} callback upon buffers are flushed and transport is paused
-       * @api private
-       */
-
-    }, {
-      key: "pause",
-      value: function pause(onPause) {
-        var _this2 = this;
-
-        this.readyState = "pausing";
-
-        var pause = function pause() {
-          _this2.readyState = "paused";
-          onPause();
-        };
-
-        if (this.polling || !this.writable) {
-          var total = 0;
-
-          if (this.polling) {
-            total++;
-            this.once("pollComplete", function () {
-              --total || pause();
-            });
-          }
-
-          if (!this.writable) {
-            total++;
-            this.once("drain", function () {
-              --total || pause();
-            });
-          }
-        } else {
-          pause();
-        }
-      }
-      /**
-       * Starts polling cycle.
-       *
-       * @api public
-       */
-
-    }, {
-      key: "poll",
-      value: function poll() {
-        this.polling = true;
-        this.doPoll();
-        this.emit("poll");
-      }
-      /**
-       * Overloads onData to detect payloads.
-       *
-       * @api private
-       */
-
-    }, {
-      key: "onData",
-      value: function onData(data) {
-        var _this3 = this;
-
-        var callback = function callback(packet) {
-          // if its the first message we consider the transport open
-          if ("opening" === _this3.readyState && packet.type === "open") {
-            _this3.onOpen();
-          } // if its a close packet, we close the ongoing requests
-
-
-          if ("close" === packet.type) {
-            _this3.onClose();
-
-            return false;
-          } // otherwise bypass onData and handle the message
-
-
-          _this3.onPacket(packet);
-        }; // decode payload
-
-
-        decodePayload(data, this.socket.binaryType).forEach(callback); // if an event did not trigger closing
-
-        if ("closed" !== this.readyState) {
-          // if we got data we're not polling
-          this.polling = false;
-          this.emit("pollComplete");
-
-          if ("open" === this.readyState) {
-            this.poll();
-          }
-        }
-      }
-      /**
-       * For polling, send a close packet.
-       *
-       * @api private
-       */
-
-    }, {
-      key: "doClose",
-      value: function doClose() {
-        var _this4 = this;
-
-        var close = function close() {
-          _this4.write([{
-            type: "close"
-          }]);
-        };
-
-        if ("open" === this.readyState) {
-          close();
-        } else {
-          // in case we're trying to close while
-          // handshaking is in progress (GH-164)
-          this.once("open", close);
-        }
-      }
-      /**
-       * Writes a packets payload.
-       *
-       * @param {Array} data packets
-       * @param {Function} drain callback
-       * @api private
-       */
-
-    }, {
-      key: "write",
-      value: function write(packets) {
-        var _this5 = this;
-
-        this.writable = false;
-        encodePayload(packets, function (data) {
-          _this5.doWrite(data, function () {
-            _this5.writable = true;
-
-            _this5.emit("drain");
-          });
-        });
-      }
-      /**
-       * Generates uri for connection.
-       *
-       * @api private
-       */
-
-    }, {
-      key: "uri",
-      value: function uri() {
-        var query = this.query || {};
-        var schema = this.opts.secure ? "https" : "http";
-        var port = ""; // cache busting is forced
-
-        if (false !== this.opts.timestampRequests) {
-          query[this.opts.timestampParam] = yeast_1();
-        }
-
-        if (!this.supportsBinary && !query.sid) {
-          query.b64 = 1;
-        } // avoid port if default for schema
-
-
-        if (this.opts.port && ("https" === schema && Number(this.opts.port) !== 443 || "http" === schema && Number(this.opts.port) !== 80)) {
-          port = ":" + this.opts.port;
-        }
-
-        var encodedQuery = parseqs.encode(query);
-        var ipv6 = this.opts.hostname.indexOf(":") !== -1;
-        return schema + "://" + (ipv6 ? "[" + this.opts.hostname + "]" : this.opts.hostname) + port + this.opts.path + (encodedQuery.length ? "?" + encodedQuery : "");
-      }
-    }]);
-
-    return Polling;
-  }(Transport);
-
-  /**
-   * Empty function
-   */
-
-  function empty() {}
-
-  var hasXHR2 = function () {
-    var xhr = new XMLHttpRequest$1({
-      xdomain: false
-    });
-    return null != xhr.responseType;
-  }();
-
-  var XHR = /*#__PURE__*/function (_Polling) {
-    _inherits(XHR, _Polling);
-
-    var _super = _createSuper(XHR);
-
-    /**
-     * XHR Polling constructor.
-     *
-     * @param {Object} opts
-     * @api public
-     */
-    function XHR(opts) {
-      var _this;
-
-      _classCallCheck(this, XHR);
-
-      _this = _super.call(this, opts);
-
-      if (typeof location !== "undefined") {
-        var isSSL = "https:" === location.protocol;
-        var port = location.port; // some user agents have empty `location.port`
-
-        if (!port) {
-          port = isSSL ? "443" : "80";
-        }
-
-        _this.xd = typeof location !== "undefined" && opts.hostname !== location.hostname || port !== opts.port;
-        _this.xs = opts.secure !== isSSL;
-      }
-      /**
-       * XHR supports binary
-       */
-
-
-      var forceBase64 = opts && opts.forceBase64;
-      _this.supportsBinary = hasXHR2 && !forceBase64;
-      return _this;
-    }
-    /**
-     * Creates a request.
-     *
-     * @param {String} method
-     * @api private
-     */
-
-
-    _createClass(XHR, [{
-      key: "request",
-      value: function request() {
-        var opts = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-
-        _extends(opts, {
-          xd: this.xd,
-          xs: this.xs
-        }, this.opts);
-
-        return new Request(this.uri(), opts);
-      }
-      /**
-       * Sends data.
-       *
-       * @param {String} data to send.
-       * @param {Function} called upon flush.
-       * @api private
-       */
-
-    }, {
-      key: "doWrite",
-      value: function doWrite(data, fn) {
-        var _this2 = this;
-
-        var req = this.request({
-          method: "POST",
-          data: data
-        });
-        req.on("success", fn);
-        req.on("error", function (err) {
-          _this2.onError("xhr post error", err);
-        });
-      }
-      /**
-       * Starts a poll cycle.
-       *
-       * @api private
-       */
-
-    }, {
-      key: "doPoll",
-      value: function doPoll() {
-        var _this3 = this;
-
-        var req = this.request();
-        req.on("data", this.onData.bind(this));
-        req.on("error", function (err) {
-          _this3.onError("xhr poll error", err);
-        });
-        this.pollXhr = req;
-      }
-    }]);
-
-    return XHR;
-  }(Polling);
-  var Request = /*#__PURE__*/function (_Emitter) {
-    _inherits(Request, _Emitter);
-
-    var _super2 = _createSuper(Request);
-
-    /**
-     * Request constructor
-     *
-     * @param {Object} options
-     * @api public
-     */
-    function Request(uri, opts) {
-      var _this4;
-
-      _classCallCheck(this, Request);
-
-      _this4 = _super2.call(this);
-      installTimerFunctions(_assertThisInitialized(_this4), opts);
-      _this4.opts = opts;
-      _this4.method = opts.method || "GET";
-      _this4.uri = uri;
-      _this4.async = false !== opts.async;
-      _this4.data = undefined !== opts.data ? opts.data : null;
-
-      _this4.create();
-
-      return _this4;
-    }
-    /**
-     * Creates the XHR object and sends the request.
-     *
-     * @api private
-     */
-
-
-    _createClass(Request, [{
-      key: "create",
-      value: function create() {
-        var _this5 = this;
-
-        var opts = pick(this.opts, "agent", "pfx", "key", "passphrase", "cert", "ca", "ciphers", "rejectUnauthorized", "autoUnref");
-        opts.xdomain = !!this.opts.xd;
-        opts.xscheme = !!this.opts.xs;
-        var xhr = this.xhr = new XMLHttpRequest$1(opts);
-
-        try {
-          xhr.open(this.method, this.uri, this.async);
-
-          try {
-            if (this.opts.extraHeaders) {
-              xhr.setDisableHeaderCheck && xhr.setDisableHeaderCheck(true);
-
-              for (var i in this.opts.extraHeaders) {
-                if (this.opts.extraHeaders.hasOwnProperty(i)) {
-                  xhr.setRequestHeader(i, this.opts.extraHeaders[i]);
-                }
-              }
-            }
-          } catch (e) {}
-
-          if ("POST" === this.method) {
-            try {
-              xhr.setRequestHeader("Content-type", "text/plain;charset=UTF-8");
-            } catch (e) {}
-          }
-
-          try {
-            xhr.setRequestHeader("Accept", "*/*");
-          } catch (e) {} // ie6 check
-
-
-          if ("withCredentials" in xhr) {
-            xhr.withCredentials = this.opts.withCredentials;
-          }
-
-          if (this.opts.requestTimeout) {
-            xhr.timeout = this.opts.requestTimeout;
-          }
-
-          xhr.onreadystatechange = function () {
-            if (4 !== xhr.readyState) return;
-
-            if (200 === xhr.status || 1223 === xhr.status) {
-              _this5.onLoad();
-            } else {
-              // make sure the `error` event handler that's user-set
-              // does not throw in the same tick and gets caught here
-              _this5.setTimeoutFn(function () {
-                _this5.onError(typeof xhr.status === "number" ? xhr.status : 0);
-              }, 0);
-            }
-          };
-
-          xhr.send(this.data);
-        } catch (e) {
-          // Need to defer since .create() is called directly from the constructor
-          // and thus the 'error' event can only be only bound *after* this exception
-          // occurs.  Therefore, also, we cannot throw here at all.
-          this.setTimeoutFn(function () {
-            _this5.onError(e);
-          }, 0);
-          return;
-        }
-
-        if (typeof document !== "undefined") {
-          this.index = Request.requestsCount++;
-          Request.requests[this.index] = this;
-        }
-      }
-      /**
-       * Called upon successful response.
-       *
-       * @api private
-       */
-
-    }, {
-      key: "onSuccess",
-      value: function onSuccess() {
-        this.emit("success");
-        this.cleanup();
-      }
-      /**
-       * Called if we have data.
-       *
-       * @api private
-       */
-
-    }, {
-      key: "onData",
-      value: function onData(data) {
-        this.emit("data", data);
-        this.onSuccess();
-      }
-      /**
-       * Called upon error.
-       *
-       * @api private
-       */
-
-    }, {
-      key: "onError",
-      value: function onError(err) {
-        this.emit("error", err);
-        this.cleanup(true);
-      }
-      /**
-       * Cleans up house.
-       *
-       * @api private
-       */
-
-    }, {
-      key: "cleanup",
-      value: function cleanup(fromError) {
-        if ("undefined" === typeof this.xhr || null === this.xhr) {
-          return;
-        }
-
-        this.xhr.onreadystatechange = empty;
-
-        if (fromError) {
-          try {
-            this.xhr.abort();
-          } catch (e) {}
-        }
-
-        if (typeof document !== "undefined") {
-          delete Request.requests[this.index];
-        }
-
-        this.xhr = null;
-      }
-      /**
-       * Called upon load.
-       *
-       * @api private
-       */
-
-    }, {
-      key: "onLoad",
-      value: function onLoad() {
-        var data = this.xhr.responseText;
-
-        if (data !== null) {
-          this.onData(data);
-        }
-      }
-      /**
-       * Aborts the request.
-       *
-       * @api public
-       */
-
-    }, {
-      key: "abort",
-      value: function abort() {
-        this.cleanup();
-      }
-    }]);
-
-    return Request;
-  }(Emitter_1);
-  Request.requestsCount = 0;
-  Request.requests = {};
-  /**
-   * Aborts pending requests when unloading the window. This is needed to prevent
-   * memory leaks (e.g. when using IE) and to ensure that no spurious error is
-   * emitted.
-   */
-
-  if (typeof document !== "undefined") {
-    // @ts-ignore
-    if (typeof attachEvent === "function") {
-      // @ts-ignore
-      attachEvent("onunload", unloadHandler);
-    } else if (typeof addEventListener === "function") {
-      var terminationEvent = "onpagehide" in globalThis ? "pagehide" : "unload";
-      addEventListener(terminationEvent, unloadHandler, false);
-    }
-  }
-
-  function unloadHandler() {
-    for (var i in Request.requests) {
-      if (Request.requests.hasOwnProperty(i)) {
-        Request.requests[i].abort();
-      }
-    }
   }
 
   var nextTick = function () {
@@ -1705,7 +1155,7 @@
         try {
           this.ws = usingBrowserWebSocket && !isReactNative ? protocols ? new WebSocket(uri, protocols) : new WebSocket(uri) : new WebSocket(uri, protocols, opts);
         } catch (err) {
-          return this.emit("error", err);
+          return this.emitReserved("error", err);
         }
 
         this.ws.binaryType = this.socket.binaryType || defaultBinaryType;
@@ -1730,7 +1180,12 @@
           _this2.onOpen();
         };
 
-        this.ws.onclose = this.onClose.bind(this);
+        this.ws.onclose = function (closeEvent) {
+          return _this2.onClose({
+            description: "websocket connection closed",
+            context: closeEvent
+          });
+        };
 
         this.ws.onmessage = function (ev) {
           return _this2.onData(ev.data);
@@ -1778,7 +1233,7 @@
               nextTick(function () {
                 _this3.writable = true;
 
-                _this3.emit("drain");
+                _this3.emitReserved("drain");
               }, _this3.setTimeoutFn);
             }
           });
@@ -1821,7 +1276,7 @@
 
 
         if (this.opts.timestampRequests) {
-          query[this.opts.timestampParam] = yeast_1();
+          query[this.opts.timestampParam] = yeast();
         } // communicate binary support capabilities
 
 
@@ -1829,7 +1284,7 @@
           query.b64 = 1;
         }
 
-        var encodedQuery = parseqs.encode(query);
+        var encodedQuery = encode$1(query);
         var ipv6 = this.opts.hostname.indexOf(":") !== -1;
         return schema + "://" + (ipv6 ? "[" + this.opts.hostname + "]" : this.opts.hostname) + port + this.opts.path + (encodedQuery.length ? "?" + encodedQuery : "");
       }
@@ -1851,9 +1306,72 @@
   }(Transport);
 
   var transports = {
-    websocket: WS,
-    polling: XHR
+    websocket: WS
   };
+
+  // imported from https://github.com/galkn/parseuri
+
+  /**
+   * Parses an URI
+   *
+   * @author Steven Levithan <stevenlevithan.com> (MIT license)
+   * @api private
+   */
+  var re = /^(?:(?![^:@]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
+  var parts = ['source', 'protocol', 'authority', 'userInfo', 'user', 'password', 'host', 'port', 'relative', 'path', 'directory', 'file', 'query', 'anchor'];
+  function parse(str) {
+    var src = str,
+        b = str.indexOf('['),
+        e = str.indexOf(']');
+
+    if (b != -1 && e != -1) {
+      str = str.substring(0, b) + str.substring(b, e).replace(/:/g, ';') + str.substring(e, str.length);
+    }
+
+    var m = re.exec(str || ''),
+        uri = {},
+        i = 14;
+
+    while (i--) {
+      uri[parts[i]] = m[i] || '';
+    }
+
+    if (b != -1 && e != -1) {
+      uri.source = src;
+      uri.host = uri.host.substring(1, uri.host.length - 1).replace(/;/g, ':');
+      uri.authority = uri.authority.replace('[', '').replace(']', '').replace(/;/g, ':');
+      uri.ipv6uri = true;
+    }
+
+    uri.pathNames = pathNames(uri, uri['path']);
+    uri.queryKey = queryKey(uri, uri['query']);
+    return uri;
+  }
+
+  function pathNames(obj, path) {
+    var regx = /\/{2,9}/g,
+        names = path.replace(regx, "/").split("/");
+
+    if (path.substr(0, 1) == '/' || path.length === 0) {
+      names.splice(0, 1);
+    }
+
+    if (path.substr(path.length - 1, 1) == '/') {
+      names.splice(names.length - 1, 1);
+    }
+
+    return names;
+  }
+
+  function queryKey(uri, query) {
+    var data = {};
+    query.replace(/(?:^|&)([^&=]*)=?([^&]*)/g, function ($0, $1, $2) {
+      if ($1) {
+        data[$1] = $2;
+      }
+    });
+    return data;
+  }
 
   var Socket$1 = /*#__PURE__*/function (_Emitter) {
     _inherits(Socket, _Emitter);
@@ -1882,13 +1400,13 @@
       }
 
       if (uri) {
-        uri = parseuri(uri);
+        uri = parse(uri);
         opts.hostname = uri.host;
         opts.secure = uri.protocol === "https" || uri.protocol === "wss";
         opts.port = uri.port;
         if (uri.query) opts.query = uri.query;
       } else if (opts.host) {
-        opts.hostname = parseuri(opts.host).host;
+        opts.hostname = parse(opts.host).host;
       }
 
       installTimerFunctions(_assertThisInitialized(_this), opts);
@@ -1901,7 +1419,7 @@
 
       _this.hostname = opts.hostname || (typeof location !== "undefined" ? location.hostname : "localhost");
       _this.port = opts.port || (typeof location !== "undefined" && location.port ? location.port : _this.secure ? "443" : "80");
-      _this.transports = opts.transports || ["polling", "websocket"];
+      _this.transports = opts.transports || ["websocket"];
       _this.readyState = "";
       _this.writeBuffer = [];
       _this.prevBufferLen = 0;
@@ -1922,7 +1440,7 @@
       _this.opts.path = _this.opts.path.replace(/\/$/, "") + "/";
 
       if (typeof _this.opts.query === "string") {
-        _this.opts.query = parseqs.decode(_this.opts.query);
+        _this.opts.query = decode(_this.opts.query);
       } // set on handshake
 
 
@@ -1950,7 +1468,9 @@
 
         if (_this.hostname !== "localhost") {
           _this.offlineEventListener = function () {
-            _this.onClose("transport close");
+            _this.onClose("transport close", {
+              description: "network connection lost"
+            });
           };
 
           addEventListener("offline", _this.offlineEventListener, false);
@@ -2047,8 +1567,8 @@
 
         this.transport = transport; // set up transport listeners
 
-        transport.on("drain", this.onDrain.bind(this)).on("packet", this.onPacket.bind(this)).on("error", this.onError.bind(this)).on("close", function () {
-          _this3.onClose("transport close");
+        transport.on("drain", this.onDrain.bind(this)).on("packet", this.onPacket.bind(this)).on("error", this.onError.bind(this)).on("close", function (reason) {
+          return _this3.onClose("transport close", reason);
         });
       }
       /**
@@ -2245,6 +1765,7 @@
         this.upgrades = this.filterUpgrades(data.upgrades);
         this.pingInterval = data.pingInterval;
         this.pingTimeout = data.pingTimeout;
+        this.maxPayload = data.maxPayload;
         this.onOpen(); // In case open handler closes socket
 
         if ("closed" === this.readyState) return;
@@ -2301,12 +1822,47 @@
       key: "flush",
       value: function flush() {
         if ("closed" !== this.readyState && this.transport.writable && !this.upgrading && this.writeBuffer.length) {
-          this.transport.send(this.writeBuffer); // keep track of current length of writeBuffer
+          var packets = this.getWritablePackets();
+          this.transport.send(packets); // keep track of current length of writeBuffer
           // splice writeBuffer and callbackBuffer on `drain`
 
-          this.prevBufferLen = this.writeBuffer.length;
+          this.prevBufferLen = packets.length;
           this.emitReserved("flush");
         }
+      }
+      /**
+       * Ensure the encoded size of the writeBuffer is below the maxPayload value sent by the server (only for HTTP
+       * long-polling)
+       *
+       * @private
+       */
+
+    }, {
+      key: "getWritablePackets",
+      value: function getWritablePackets() {
+        var shouldCheckPayloadSize = this.maxPayload && this.transport.name === "polling" && this.writeBuffer.length > 1;
+
+        if (!shouldCheckPayloadSize) {
+          return this.writeBuffer;
+        }
+
+        var payloadSize = 1; // first packet type
+
+        for (var i = 0; i < this.writeBuffer.length; i++) {
+          var data = this.writeBuffer[i].data;
+
+          if (data) {
+            payloadSize += byteLength(data);
+          }
+
+          if (i > 0 && payloadSize > this.maxPayload) {
+            return this.writeBuffer.slice(0, i);
+          }
+
+          payloadSize += 2; // separator + packet type
+        }
+
+        return this.writeBuffer;
       }
       /**
        * Sends a message.
@@ -2442,7 +1998,7 @@
 
     }, {
       key: "onClose",
-      value: function onClose(reason, desc) {
+      value: function onClose(reason, description) {
         if ("opening" === this.readyState || "open" === this.readyState || "closing" === this.readyState) {
           // clear timers
           this.clearTimeoutFn(this.pingTimeoutTimer); // stop event from firing again for transport
@@ -2462,7 +2018,7 @@
 
           this.id = null; // emit close event
 
-          this.emitReserved("close", reason, desc); // clean buffers after, so users can still
+          this.emitReserved("close", reason, description); // clean buffers after, so users can still
           // grab the buffers on `close` event
 
           this.writeBuffer = [];
@@ -3914,7 +3470,7 @@
             socket.close(); // @ts-ignore
 
             socket.emit("error", new Error("timeout"));
-          }, timeout);
+          }, timeout); // @ts-ignore
 
           if (this.opts.autoUnref) {
             timer.unref();
@@ -4157,7 +3713,7 @@
                 self.onreconnect();
               }
             });
-          }, delay);
+          }, delay); // @ts-ignore
 
           if (this.opts.autoUnref) {
             timer.unref();
@@ -4216,9 +3772,11 @@
       }
 
       io = cache[id];
-    }
+    } // @ts-ignore
+
 
     if (parsed.query && !opts.query) {
+      // @ts-ignore
       opts.query = parsed.queryKey;
     }
 

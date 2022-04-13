@@ -35,7 +35,7 @@
     "@socket.io/component-emitter": "~3.0.0",
     "backo2": "~1.0.2",
     "debug": "~4.3.2",
-    "engine.io-client": "~6.1.1",
+    "engine.io-client": "git+https://github.com/crisp-dev/engine.io-client.git#8b8dda3c864715841def83c567535c8d01ebea71",
     "parseuri": "0.0.6",
     "socket.io-parser": "~4.1.1"
   },
@@ -75,8 +75,7 @@
     "webpack-cli": "^3.3.12",
     "webpack-remove-debug": "^0.1.0",
     "zuul": "~3.11.1",
-    "zuul-builder-webpack": "^1.2.0",
-    "zuul-ngrok": "4.0.0"
+    "zuul-builder-webpack": "^1.2.0"
   },
   "scripts": {
     "compile": "rimraf ./build && tsc && tsc -p tsconfig.esm.json && ./postcompile.sh",

@@ -65,7 +65,10 @@ function lookup(
     }
     io = cache[id];
   }
+
+  // @ts-ignore
   if (parsed.query && !opts.query) {
+    // @ts-ignore
     opts.query = parsed.queryKey;
   }
   return io.socket(parsed.path, opts);
