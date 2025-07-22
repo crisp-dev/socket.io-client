@@ -83,7 +83,7 @@
     "test:node": "mocha --require ts-node/register --reporter dot --require test/support/server.js test/index.js",
     "test:browser": "zuul test/index.js",
     "test:types": "tsd",
-    "build": "rollup -c support/rollup.config.umd.js && rollup -c support/rollup.config.esm.js && rollup -c support/rollup.config.umd.msgpack.js",
+    "_build": "rollup -c support/rollup.config.umd.js && rollup -c support/rollup.config.esm.js && rollup -c support/rollup.config.umd.msgpack.js",
     "format:check": "prettier --check \"lib/**/*.ts\" \"test/**/*.js\" \"test/**/*.ts\" \"support/**/*.js\"",
     "format:fix": "prettier --write \"lib/**/*.ts\" \"test/**/*.js\" \"test/**/*.ts\" \"support/**/*.js\"",
     "prepack": "npm run compile"
