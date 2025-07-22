@@ -77,15 +77,15 @@
     "zuul-builder-webpack": "^1.2.0"
   },
   "scripts": {
-    "compile": "rimraf ./build && tsc && tsc -p tsconfig.esm.json && ./postcompile.sh",
-    "test": "npm run format:check && npm run compile && if test \"$BROWSERS\" = \"1\" ; then npm run test:browser; else npm run test:node; fi",
-    "test:node": "mocha --require ts-node/register --reporter dot --require test/support/server.js test/index.js",
-    "test:browser": "zuul test/index.js",
-    "test:types": "tsd",
+    "_compile": "rimraf ./build && tsc && tsc -p tsconfig.esm.json && ./postcompile.sh",
+    "_test": "npm run format:check && npm run compile && if test \"$BROWSERS\" = \"1\" ; then npm run test:browser; else npm run test:node; fi",
+    "_test:node": "mocha --require ts-node/register --reporter dot --require test/support/server.js test/index.js",
+    "_test:browser": "zuul test/index.js",
+    "_test:types": "tsd",
     "_build": "rollup -c support/rollup.config.umd.js && rollup -c support/rollup.config.esm.js && rollup -c support/rollup.config.umd.msgpack.js",
-    "format:check": "prettier --check \"lib/**/*.ts\" \"test/**/*.js\" \"test/**/*.ts\" \"support/**/*.js\"",
-    "format:fix": "prettier --write \"lib/**/*.ts\" \"test/**/*.js\" \"test/**/*.ts\" \"support/**/*.js\"",
-    "prepack": "npm run compile"
+    "_format:check": "prettier --check \"lib/**/*.ts\" \"test/**/*.js\" \"test/**/*.ts\" \"support/**/*.js\"",
+    "_format:fix": "prettier --write \"lib/**/*.ts\" \"test/**/*.js\" \"test/**/*.ts\" \"support/**/*.js\"",
+    "_prepack": "npm run compile"
   },
   "contributors": [
     {
