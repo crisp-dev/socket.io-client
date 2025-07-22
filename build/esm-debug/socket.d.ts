@@ -1,4 +1,4 @@
-import { Packet } from "socket.io-parser";
+import { Packet } from "./parser.js";
 import { Manager } from "./manager.js";
 import { DefaultEventsMap, EventNames, EventParams, EventsMap, Emitter } from "@socket.io/component-emitter";
 export interface SocketOptions {

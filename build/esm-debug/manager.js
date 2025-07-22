@@ -1,7 +1,7 @@
 // @ts-ignore
 import { Socket as Engine, installTimerFunctions, } from "engine.io-client";
 import { Socket } from "./socket.js";
-import * as parser from "socket.io-parser";
+import * as parser from "./parser.js";
 import { on } from "./on.js";
 import Backoff from "backo2";
 import { Emitter, } from "@socket.io/component-emitter";

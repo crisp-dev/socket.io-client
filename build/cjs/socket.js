@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Socket = void 0;
-const socket_io_parser_1 = require("socket.io-parser");
+const parser_js_1 = require("./parser.js");
 const on_js_1 = require("./on.js");
 const component_emitter_1 = require("@socket.io/component-emitter");
 const debug_1 = __importDefault(require("debug")); // debug()
@@ -112,7 +112,7 @@ class Socket extends component_emitter_1.Emitter {
         }
         args.unshift(ev);
         const packet = {
-            type: socket_io_parser_1.PacketType.EVENT,
+            type: parser_js_1.PacketType.EVENT,
             data: args,
         };
         packet.options = {};
@@ -187,11 +187,11 @@ class Socket extends component_emitter_1.Emitter {
         debug("transport is open - connecting");
         if (typeof this.auth == "function") {
             this.auth((data) => {
-                this.packet({ type: socket_io_parser_1.PacketType.CONNECT, data });
+                this.packet({ type: parser_js_1.PacketType.CONNECT, data });
             });
         }
         else {
-            this.packet({ type: socket_io_parser_1.PacketType.CONNECT, data: this.auth });
+            this.packet({ type: parser_js_1.PacketType.CONNECT, data: this.auth });
         }
     }
     /**
@@ -229,7 +229,7 @@ class Socket extends component_emitter_1.Emitter {
         if (!sameNamespace)
             return;
         switch (packet.type) {
-            case socket_io_parser_1.PacketType.CONNECT:
+            case parser_js_1.PacketType.CONNECT:
                 if (packet.data && packet.data.sid) {
                     const id = packet.data.sid;
                     this.onconnect(id);
@@ -238,22 +238,22 @@ class Socket extends component_emitter_1.Emitter {
                     this.emitReserved("connect_error", new Error("It seems you are trying to reach a Socket.IO server in v2.x with a v3.x client, but they are not compatible (more information here: https://socket.io/docs/v3/migrating-from-2-x-to-3-0/)"));
                 }
                 break;
-            case socket_io_parser_1.PacketType.EVENT:
+            case parser_js_1.PacketType.EVENT:
                 this.onevent(packet);
                 break;
-            case socket_io_parser_1.PacketType.BINARY_EVENT:
-                this.onevent(packet);
+            case parser_js_1.PacketType.BINARY_EVENT:
+                //this.onevent(packet);
                 break;
-            case socket_io_parser_1.PacketType.ACK:
+            case parser_js_1.PacketType.ACK:
                 this.onack(packet);
                 break;
-            case socket_io_parser_1.PacketType.BINARY_ACK:
-                this.onack(packet);
+            case parser_js_1.PacketType.BINARY_ACK:
+                //this.onack(packet);
                 break;
-            case socket_io_parser_1.PacketType.DISCONNECT:
+            case parser_js_1.PacketType.DISCONNECT:
                 this.ondisconnect();
                 break;
-            case socket_io_parser_1.PacketType.CONNECT_ERROR:
+            case parser_js_1.PacketType.CONNECT_ERROR:
                 this.destroy();
                 const err = new Error(packet.data.message);
                 // @ts-ignore
@@ -306,7 +306,7 @@ class Socket extends component_emitter_1.Emitter {
             sent = true;
             debug("sending ack %j", args);
             self.packet({
-                type: socket_io_parser_1.PacketType.ACK,
+                type: parser_js_1.PacketType.ACK,
                 id: id,
                 data: args,
             });
@@ -387,7 +387,7 @@ class Socket extends component_emitter_1.Emitter {
     disconnect() {
         if (this.connected) {
             debug("performing disconnect (%s)", this.nsp);
-            this.packet({ type: socket_io_parser_1.PacketType.DISCONNECT });
+            this.packet({ type: parser_js_1.PacketType.DISCONNECT });
         }
         // remove socket from pool
         this.destroy();

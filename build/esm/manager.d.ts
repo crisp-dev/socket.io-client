@@ -1,6 +1,6 @@
 import { Socket as Engine, SocketOptions as EngineOptions } from "engine.io-client";
 import { Socket, SocketOptions } from "./socket.js";
-import { Packet } from "socket.io-parser";
+import { Packet } from "./parser.js";
 import { DefaultEventsMap, EventsMap, Emitter } from "@socket.io/component-emitter";
 export interface ManagerOptions extends EngineOptions {
     /**

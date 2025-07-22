@@ -1,8 +1,8 @@
 // @ts-ignore
 import { Socket as Engine, SocketOptions as EngineOptions, installTimerFunctions,} from "engine.io-client";
 import { Socket, SocketOptions } from "./socket.js";
-import * as parser from "socket.io-parser";
-import { Decoder, Encoder, Packet } from "socket.io-parser";
+import * as parser from "./parser.js";
+import { Decoder, Encoder, Packet } from "./parser.js";
 import { on } from "./on.js";
 import Backoff from "backo2";
 import {

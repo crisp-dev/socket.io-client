@@ -26,7 +26,7 @@ exports.Manager = void 0;
 // @ts-ignore
 const engine_io_client_1 = require("engine.io-client");
 const socket_js_1 = require("./socket.js");
-const parser = __importStar(require("socket.io-parser"));
+const parser = __importStar(require("./parser.js"));
 const on_js_1 = require("./on.js");
 const backo2_1 = __importDefault(require("backo2"));
 const component_emitter_1 = require("@socket.io/component-emitter");

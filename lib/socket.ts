@@ -1,4 +1,4 @@
-import { Packet, PacketType } from "socket.io-parser";
+import { Packet, PacketType } from "./parser.js";
 import { on } from "./on.js";
 import { Manager } from "./manager.js";
 import {
@@ -307,7 +307,7 @@ export class Socket<
         break;
 
       case PacketType.BINARY_EVENT:
-        this.onevent(packet);
+        //this.onevent(packet);
         break;
 
       case PacketType.ACK:
@@ -315,7 +315,7 @@ export class Socket<
         break;
 
       case PacketType.BINARY_ACK:
-        this.onack(packet);
+        //this.onack(packet);
         break;
 
       case PacketType.DISCONNECT:

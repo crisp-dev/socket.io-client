@@ -444,10 +444,10 @@
     data: "parser error"
   };
 
-  var withNativeBlob$1 = typeof Blob === "function" || typeof Blob !== "undefined" && Object.prototype.toString.call(Blob) === "[object BlobConstructor]";
-  var withNativeArrayBuffer$2 = typeof ArrayBuffer === "function"; // ArrayBuffer.isView method is not defined in IE10
+  var withNativeBlob = typeof Blob === "function" || typeof Blob !== "undefined" && Object.prototype.toString.call(Blob) === "[object BlobConstructor]";
+  var withNativeArrayBuffer$1 = typeof ArrayBuffer === "function"; // ArrayBuffer.isView method is not defined in IE10
 
-  var isView$1 = function isView(obj) {
+  var isView = function isView(obj) {
     return typeof ArrayBuffer.isView === "function" ? ArrayBuffer.isView(obj) : obj && obj.buffer instanceof ArrayBuffer;
   };
 
@@ -455,13 +455,13 @@
     var type = _ref.type,
         data = _ref.data;
 
-    if (withNativeBlob$1 && data instanceof Blob) {
+    if (withNativeBlob && data instanceof Blob) {
       if (supportsBinary) {
         return callback(data);
       } else {
         return encodeBlobAsBase64(data, callback);
       }
-    } else if (withNativeArrayBuffer$2 && (data instanceof ArrayBuffer || isView$1(data))) {
+    } else if (withNativeArrayBuffer$1 && (data instanceof ArrayBuffer || isView(data))) {
       if (supportsBinary) {
         return callback(data);
       } else {
@@ -531,7 +531,7 @@
     return arraybuffer;
   };
 
-  var withNativeArrayBuffer$1 = typeof ArrayBuffer === "function";
+  var withNativeArrayBuffer = typeof ArrayBuffer === "function";
 
   var decodePacket = function decodePacket(encodedPacket, binaryType) {
     if (typeof encodedPacket !== "string") {
@@ -565,7 +565,7 @@
   };
 
   var decodeBase64Packet = function decodeBase64Packet(data, binaryType) {
-    if (withNativeArrayBuffer$1) {
+    if (withNativeArrayBuffer) {
       var decoded = decode$1(data);
       return mapBinary(decoded, binaryType);
     } else {
@@ -2064,146 +2064,6 @@
     return o;
   }
 
-  var withNativeArrayBuffer = typeof ArrayBuffer === "function";
-
-  var isView = function isView(obj) {
-    return typeof ArrayBuffer.isView === "function" ? ArrayBuffer.isView(obj) : obj.buffer instanceof ArrayBuffer;
-  };
-
-  var toString = Object.prototype.toString;
-  var withNativeBlob = typeof Blob === "function" || typeof Blob !== "undefined" && toString.call(Blob) === "[object BlobConstructor]";
-  var withNativeFile = typeof File === "function" || typeof File !== "undefined" && toString.call(File) === "[object FileConstructor]";
-  /**
-   * Returns true if obj is a Buffer, an ArrayBuffer, a Blob or a File.
-   *
-   * @private
-   */
-
-  function isBinary(obj) {
-    return withNativeArrayBuffer && (obj instanceof ArrayBuffer || isView(obj)) || withNativeBlob && obj instanceof Blob || withNativeFile && obj instanceof File;
-  }
-  function hasBinary(obj, toJSON) {
-    if (!obj || _typeof(obj) !== "object") {
-      return false;
-    }
-
-    if (Array.isArray(obj)) {
-      for (var i = 0, l = obj.length; i < l; i++) {
-        if (hasBinary(obj[i])) {
-          return true;
-        }
-      }
-
-      return false;
-    }
-
-    if (isBinary(obj)) {
-      return true;
-    }
-
-    if (obj.toJSON && typeof obj.toJSON === "function" && arguments.length === 1) {
-      return hasBinary(obj.toJSON(), true);
-    }
-
-    for (var key in obj) {
-      if (Object.prototype.hasOwnProperty.call(obj, key) && hasBinary(obj[key])) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * Replaces every Buffer | ArrayBuffer | Blob | File in packet with a numbered placeholder.
-   *
-   * @param {Object} packet - socket.io event packet
-   * @return {Object} with deconstructed packet and list of buffers
-   * @public
-   */
-
-  function deconstructPacket(packet) {
-    var buffers = [];
-    var packetData = packet.data;
-    var pack = packet;
-    pack.data = _deconstructPacket(packetData, buffers);
-    pack.attachments = buffers.length; // number of binary 'attachments'
-
-    return {
-      packet: pack,
-      buffers: buffers
-    };
-  }
-
-  function _deconstructPacket(data, buffers) {
-    if (!data) return data;
-
-    if (isBinary(data)) {
-      var placeholder = {
-        _placeholder: true,
-        num: buffers.length
-      };
-      buffers.push(data);
-      return placeholder;
-    } else if (Array.isArray(data)) {
-      var newData = new Array(data.length);
-
-      for (var i = 0; i < data.length; i++) {
-        newData[i] = _deconstructPacket(data[i], buffers);
-      }
-
-      return newData;
-    } else if (_typeof(data) === "object" && !(data instanceof Date)) {
-      var _newData = {};
-
-      for (var key in data) {
-        if (data.hasOwnProperty(key)) {
-          _newData[key] = _deconstructPacket(data[key], buffers);
-        }
-      }
-
-      return _newData;
-    }
-
-    return data;
-  }
-  /**
-   * Reconstructs a binary packet from its placeholder packet and buffers
-   *
-   * @param {Object} packet - event packet with placeholders
-   * @param {Array} buffers - binary buffers to put in placeholder positions
-   * @return {Object} reconstructed packet
-   * @public
-   */
-
-
-  function reconstructPacket(packet, buffers) {
-    packet.data = _reconstructPacket(packet.data, buffers);
-    packet.attachments = undefined; // no longer useful
-
-    return packet;
-  }
-
-  function _reconstructPacket(data, buffers) {
-    if (!data) return data;
-
-    if (data && data._placeholder) {
-      return buffers[data.num]; // appropriate buffer (should be natural order anyway)
-    } else if (Array.isArray(data)) {
-      for (var i = 0; i < data.length; i++) {
-        data[i] = _reconstructPacket(data[i], buffers);
-      }
-    } else if (_typeof(data) === "object") {
-      for (var key in data) {
-        if (data.hasOwnProperty(key)) {
-          data[key] = _reconstructPacket(data[key], buffers);
-        }
-      }
-    }
-
-    return data;
-  }
-
   /**
    * Protocol version.
    *
@@ -2242,13 +2102,6 @@
        * @param {Object} obj - packet object
        */
       function encode(obj) {
-        if (obj.type === PacketType.EVENT || obj.type === PacketType.ACK) {
-          if (hasBinary(obj)) {
-            obj.type = obj.type === PacketType.EVENT ? PacketType.BINARY_EVENT : PacketType.BINARY_ACK;
-            return this.encodeAsBinary(obj);
-          }
-        }
-
         return [this.encodeAsString(obj)];
       }
       /**
@@ -2282,22 +2135,6 @@
         }
 
         return str;
-      }
-      /**
-       * Encode packet as 'buffer sequence' by removing blobs, and
-       * deconstructing packet into object with placeholders and
-       * a list of buffers.
-       */
-
-    }, {
-      key: "encodeAsBinary",
-      value: function encodeAsBinary(obj) {
-        var deconstruction = deconstructPacket(obj);
-        var pack = this.encodeAsString(deconstruction.packet);
-        var buffers = deconstruction.buffers;
-        buffers.unshift(pack); // add packet info to beginning of data list
-
-        return buffers; // write all the buffers
       }
     }]);
 
@@ -2335,29 +2172,13 @@
           packet = this.decodeString(obj);
 
           if (packet.type === PacketType.BINARY_EVENT || packet.type === PacketType.BINARY_ACK) {
-            // binary packet's json
-            this.reconstructor = new BinaryReconstructor(packet); // no attachments, labeled binary but no binary data to follow
-
+            // no attachments, labeled binary but no binary data to follow
             if (packet.attachments === 0) {
               _get(_getPrototypeOf(Decoder.prototype), "emitReserved", this).call(this, "decoded", packet);
             }
           } else {
             // non-binary full packet
             _get(_getPrototypeOf(Decoder.prototype), "emitReserved", this).call(this, "decoded", packet);
-          }
-        } else if (isBinary(obj) || obj.base64) {
-          // raw binary data
-          if (!this.reconstructor) {
-            throw new Error("got binary data when not reconstructing a packet");
-          } else {
-            packet = this.reconstructor.takeBinaryData(obj);
-
-            if (packet) {
-              // received final buffer
-              this.reconstructor = null;
-
-              _get(_getPrototypeOf(Decoder.prototype), "emitReserved", this).call(this, "decoded", packet);
-            }
           }
         } else {
           throw new Error("Unknown type: " + obj);
@@ -2452,11 +2273,7 @@
       /**
        * Deallocates a parser's resources
        */
-      function destroy() {
-        if (this.reconstructor) {
-          this.reconstructor.finishedReconstruction();
-        }
-      }
+      function destroy() {}
     }], [{
       key: "isPayloadValid",
       value: function isPayloadValid(type, payload) {
@@ -2491,62 +2308,6 @@
       return false;
     }
   }
-  /**
-   * A manager of a binary event's 'buffer sequence'. Should
-   * be constructed whenever a packet of type BINARY_EVENT is
-   * decoded.
-   *
-   * @param {Object} packet
-   * @return {BinaryReconstructor} initialized reconstructor
-   */
-
-
-  var BinaryReconstructor = /*#__PURE__*/function () {
-    function BinaryReconstructor(packet) {
-      _classCallCheck(this, BinaryReconstructor);
-
-      this.packet = packet;
-      this.buffers = [];
-      this.reconPack = packet;
-    }
-    /**
-     * Method to be called when binary data received from connection
-     * after a BINARY_EVENT packet.
-     *
-     * @param {Buffer | ArrayBuffer} binData - the raw binary data received
-     * @return {null | Object} returns null if more binary data is expected or
-     *   a reconstructed packet object if all buffers have been received.
-     */
-
-
-    _createClass(BinaryReconstructor, [{
-      key: "takeBinaryData",
-      value: function takeBinaryData(binData) {
-        this.buffers.push(binData);
-
-        if (this.buffers.length === this.reconPack.attachments) {
-          // done with buffer list
-          var packet = reconstructPacket(this.reconPack, this.buffers);
-          this.finishedReconstruction();
-          return packet;
-        }
-
-        return null;
-      }
-      /**
-       * Cleans up binary packet reconstruction variables.
-       */
-
-    }, {
-      key: "finishedReconstruction",
-      value: function finishedReconstruction() {
-        this.reconPack = null;
-        this.buffers = [];
-      }
-    }]);
-
-    return BinaryReconstructor;
-  }();
 
   var parser = /*#__PURE__*/Object.freeze({
     __proto__: null,
@@ -2861,7 +2622,7 @@
             break;
 
           case PacketType.BINARY_EVENT:
-            this.onevent(packet);
+            //this.onevent(packet);
             break;
 
           case PacketType.ACK:
@@ -2869,7 +2630,7 @@
             break;
 
           case PacketType.BINARY_ACK:
-            this.onack(packet);
+            //this.onack(packet);
             break;
 
           case PacketType.DISCONNECT:

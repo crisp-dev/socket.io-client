@@ -1,4 +1,4 @@
-import { PacketType } from "socket.io-parser";
+import { PacketType } from "./parser.js";
 import { on } from "./on.js";
 import { Emitter, } from "@socket.io/component-emitter";
 import debugModule from "debug"; // debug()
@@ -236,13 +236,13 @@ export class Socket extends Emitter {
                 this.onevent(packet);
                 break;
             case PacketType.BINARY_EVENT:
-                this.onevent(packet);
+                //this.onevent(packet);
                 break;
             case PacketType.ACK:
                 this.onack(packet);
                 break;
             case PacketType.BINARY_ACK:
-                this.onack(packet);
+                //this.onack(packet);
                 break;
             case PacketType.DISCONNECT:
                 this.ondisconnect();

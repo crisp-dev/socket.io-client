@@ -50,7 +50,7 @@ Object.assign(lookup, {
  *
  * @public
  */
-export { protocol } from "socket.io-parser";
+export { protocol } from "./parser.js";
 /**
  * Expose constructors for standalone build.
  *

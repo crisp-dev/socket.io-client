@@ -65,7 +65,7 @@ Object.assign(lookup, {
  *
  * @public
  */
-var socket_io_parser_1 = require("socket.io-parser");
-Object.defineProperty(exports, "protocol", { enumerable: true, get: function () { return socket_io_parser_1.protocol; } });
+var parser_js_1 = require("./parser.js");
+Object.defineProperty(exports, "protocol", { enumerable: true, get: function () { return parser_js_1.protocol; } });
 
 module.exports = lookup;
