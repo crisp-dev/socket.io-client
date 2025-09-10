@@ -35,7 +35,7 @@
     "@socket.io/component-emitter": "~3.0.0",
     "backo2": "~1.0.2",
     "debug": "~4.3.2",
-    "engine.io-client": "git+https://github.com/crisp-dev/engine.io-client.git#d0963aed08439f549298d54716816fe8d06cec0c",
+    "engine.io-client": "git+https://github.com/crisp-dev/engine.io-client.git#e60b5c544030fd1dbfa5a7e02c4575abf808ac06",
     "parseuri": "0.0.6"
   },
   "devDependencies": {
