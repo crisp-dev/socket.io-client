@@ -1,349 +1,155 @@
 // @ts-ignore
 import { Socket as Engine, installTimerFunctions, } from "engine.io-client";
-import { Socket } from "./socket.js";
-import * as parser from "./parser.js";
-import { on } from "./on.js";
 import Backoff from "backo2";
 import { Emitter, } from "@socket.io/component-emitter";
+import { on } from "./on.js";
+import { Decoder, Encoder } from "./parser.js";
+import { Socket } from "./socket.js";
 export class Manager extends Emitter {
-    constructor(uri, opts) {
-        var _a;
+    constructor(uri, opts = {}) {
+        var _a, _b, _c, _d, _e;
         super();
-        this.nsps = {};
-        this.subs = [];
-        if (uri && "object" === typeof uri) {
-            opts = uri;
-            uri = undefined;
-        }
-        opts = opts || {};
-        opts.path = opts.path || "/socket.io";
-        this.opts = opts;
-        installTimerFunctions(this, opts);
-        this.reconnection(opts.reconnection !== false);
-        this.reconnectionAttempts(opts.reconnectionAttempts || Infinity);
-        this.reconnectionDelay(opts.reconnectionDelay || 1000);
-        this.reconnectionDelayMax(opts.reconnectionDelayMax || 5000);
-        this.randomizationFactor((_a = opts.randomizationFactor) !== null && _a !== void 0 ? _a : 0.5);
-        this.backoff = new Backoff({
-            min: this.reconnectionDelay(),
-            max: this.reconnectionDelayMax(),
-            jitter: this.randomizationFactor(),
-        });
-        this.timeout(null == opts.timeout ? 20000 : opts.timeout);
         this._readyState = "closed";
+        this._reconnecting = false;
+        this.subs = [];
+        this.skipReconnect = false;
+        this.encoder = new Encoder();
+        this.decoder = new Decoder();
+        opts.path = opts.path || "/socket.io";
         this.uri = uri;
-        const _parser = opts.parser || parser;
-        this.encoder = new _parser.Encoder();
-        this.decoder = new _parser.Decoder();
+        this.opts = opts;
+        this.reconnectionEnabled = opts.reconnection !== false;
+        this.reconnectionAttemptsLimit = (_a = opts.reconnectionAttempts) !== null && _a !== void 0 ? _a : Infinity;
+        this.timeoutValue = (_b = opts.timeout) !== null && _b !== void 0 ? _b : 20000;
+        this.backoff = new Backoff({
+            min: (_c = opts.reconnectionDelay) !== null && _c !== void 0 ? _c : 1000,
+            max: (_d = opts.reconnectionDelayMax) !== null && _d !== void 0 ? _d : 5000,
+            jitter: (_e = opts.randomizationFactor) !== null && _e !== void 0 ? _e : 0.5,
+        });
         this._autoConnect = opts.autoConnect !== false;
-        if (this._autoConnect)
+        installTimerFunctions(this, opts);
+        if (this._autoConnect) {
             this.open();
-    }
-    reconnection(v) {
-        if (!arguments.length)
-            return this._reconnection;
-        this._reconnection = !!v;
-        return this;
-    }
-    reconnectionAttempts(v) {
-        if (v === undefined)
-            return this._reconnectionAttempts;
-        this._reconnectionAttempts = v;
-        return this;
-    }
-    reconnectionDelay(v) {
-        var _a;
-        if (v === undefined)
-            return this._reconnectionDelay;
-        this._reconnectionDelay = v;
-        (_a = this.backoff) === null || _a === void 0 ? void 0 : _a.setMin(v);
-        return this;
-    }
-    randomizationFactor(v) {
-        var _a;
-        if (v === undefined)
-            return this._randomizationFactor;
-        this._randomizationFactor = v;
-        (_a = this.backoff) === null || _a === void 0 ? void 0 : _a.setJitter(v);
-        return this;
-    }
-    reconnectionDelayMax(v) {
-        var _a;
-        if (v === undefined)
-            return this._reconnectionDelayMax;
-        this._reconnectionDelayMax = v;
-        (_a = this.backoff) === null || _a === void 0 ? void 0 : _a.setMax(v);
-        return this;
-    }
-    timeout(v) {
-        if (!arguments.length)
-            return this._timeout;
-        this._timeout = v;
-        return this;
-    }
-    /**
-     * Starts trying to reconnect if reconnection is enabled and we have not
-     * started reconnecting yet
-     *
-     * @private
-     */
-    maybeReconnectOnOpen() {
-        // Only try to reconnect if it's the first time we're connecting
-        if (!this._reconnecting &&
-            this._reconnection &&
-            this.backoff.attempts === 0) {
-            // keeps reconnection from firing twice for the same reconnection loop
-            this.reconnect();
         }
     }
-    /**
-     * Sets the current transport `socket`.
-     *
-     * @param {Function} fn - optional, callback
-     * @return self
-     * @public
-     */
-    open(fn) {
-        if (~this._readyState.indexOf("open"))
+    open(callback) {
+        if (this._readyState === "opening" || this._readyState === "open") {
             return this;
+        }
         this.engine = new Engine(this.uri, this.opts);
-        const socket = this.engine;
-        const self = this;
+        const engine = this.engine;
         this._readyState = "opening";
         this.skipReconnect = false;
-        // emit `open`
-        const openSubDestroy = on(socket, "open", function () {
-            self.onopen();
-            fn && fn();
+        const removeOpenListener = on(engine, "open", () => {
+            this.onopen();
+            callback === null || callback === void 0 ? void 0 : callback();
         });
-        // emit `error`
-        const errorSub = on(socket, "error", (err) => {
-            self.cleanup();
-            self._readyState = "closed";
+        const removeErrorListener = on(engine, "error", (err) => {
+            this.cleanup();
+            this._readyState = "closed";
             this.emitReserved("error", err);
-            if (fn) {
-                fn(err);
+            if (callback) {
+                callback(err);
             }
             else {
-                // Only do this if there is no fn to handle the error
-                self.maybeReconnectOnOpen();
+                this.maybeReconnectOnOpen();
             }
         });
-        if (false !== this._timeout) {
-            const timeout = this._timeout;
-            if (timeout === 0) {
-                openSubDestroy(); // prevents a race condition with the 'open' event
-            }
-            // set timer
+        this.subs.push(removeOpenListener, removeErrorListener);
+        if (this.timeoutValue !== false) {
             const timer = this.setTimeoutFn(() => {
-                openSubDestroy();
-                socket.close();
-                // @ts-ignore
-                socket.emit("error", new Error("timeout"));
-            }, timeout);
-            // @ts-ignore
-            if (this.opts.autoUnref) {
-                timer.unref();
-            }
-            this.subs.push(function subDestroy() {
-                clearTimeout(timer);
-            });
+                removeOpenListener();
+                engine.close();
+                engine.emit("error", new Error("timeout"));
+            }, this.timeoutValue);
+            this.subs.push(() => this.clearTimeoutFn(timer));
         }
-        this.subs.push(openSubDestroy);
-        this.subs.push(errorSub);
         return this;
     }
-    /**
-     * Alias for open()
-     *
-     * @return self
-     * @public
-     */
-    connect(fn) {
-        return this.open(fn);
-    }
-    /**
-     * Called upon transport open.
-     *
-     * @private
-     */
-    onopen() {
-        // clear old subs
-        this.cleanup();
-        // mark as open
-        this._readyState = "open";
-        this.emitReserved("open");
-        // add new subs
-        const socket = this.engine;
-        this.subs.push(on(socket, "ping", this.onping.bind(this)), on(socket, "data", this.ondata.bind(this)), on(socket, "error", this.onerror.bind(this)), on(socket, "close", this.onclose.bind(this)), on(this.decoder, "decoded", this.ondecoded.bind(this)));
-    }
-    /**
-     * Called upon a ping.
-     *
-     * @private
-     */
-    onping() {
-        this.emitReserved("ping");
-    }
-    /**
-     * Called with data.
-     *
-     * @private
-     */
-    ondata(data) {
-        this.decoder.add(data);
-    }
-    /**
-     * Called when parser fully decodes a packet.
-     *
-     * @private
-     */
-    ondecoded(packet) {
-        this.emitReserved("packet", packet);
-    }
-    /**
-     * Called upon socket error.
-     *
-     * @private
-     */
-    onerror(err) {
-        this.emitReserved("error", err);
-    }
-    /**
-     * Creates a new socket for the given `nsp`.
-     *
-     * @return {Socket}
-     * @public
-     */
-    socket(nsp, opts) {
-        let socket = this.nsps[nsp];
-        if (!socket) {
-            socket = new Socket(this, nsp, opts);
-            this.nsps[nsp] = socket;
+    socket() {
+        if (!this.socketInstance) {
+            this.socketInstance = new Socket(this);
         }
-        return socket;
+        return this.socketInstance;
     }
-    /**
-     * Called upon a socket close.
-     *
-     * @param socket
-     * @private
-     */
     _destroy(socket) {
-        const nsps = Object.keys(this.nsps);
-        for (const nsp of nsps) {
-            const socket = this.nsps[nsp];
-            if (socket.active) {
-                return;
-            }
+        if (socket === this.socketInstance) {
+            this._close();
         }
-        this._close();
     }
-    /**
-     * Writes a packet.
-     *
-     * @param packet
-     * @private
-     */
     _packet(packet) {
-        const encodedPackets = this.encoder.encode(packet);
-        for (let i = 0; i < encodedPackets.length; i++) {
-            this.engine.write(encodedPackets[i], packet.options);
+        for (const encodedPacket of this.encoder.encode(packet)) {
+            this.engine.write(encodedPacket);
         }
     }
-    /**
-     * Clean up transport subscriptions and packet buffer.
-     *
-     * @private
-     */
-    cleanup() {
-        this.subs.forEach((subDestroy) => subDestroy());
-        this.subs.length = 0;
-        this.decoder.destroy();
-    }
-    /**
-     * Close the current socket.
-     *
-     * @private
-     */
     _close() {
         this.skipReconnect = true;
         this._reconnecting = false;
         this.onclose("forced close");
-        if (this.engine)
+        if (this.engine) {
             this.engine.close();
+        }
     }
-    /**
-     * Alias for close()
-     *
-     * @private
-     */
-    disconnect() {
-        return this._close();
+    maybeReconnectOnOpen() {
+        if (!this._reconnecting &&
+            this.reconnectionEnabled &&
+            this.backoff.attempts === 0) {
+            this.reconnect();
+        }
     }
-    /**
-     * Called upon engine close.
-     *
-     * @private
-     */
+    onopen() {
+        this.cleanup();
+        this._readyState = "open";
+        this.emitReserved("open");
+        this.subs.push(on(this.engine, "ping", () => this.emitReserved("ping")), on(this.engine, "data", (data) => this.decoder.add(data)), on(this.engine, "error", (err) => this.emitReserved("error", err)), on(this.engine, "close", (reason) => this.onclose(reason)), on(this.decoder, "decoded", (packet) => this.emitReserved("packet", packet)));
+    }
+    cleanup() {
+        this.subs.forEach((removeSubscription) => removeSubscription());
+        this.subs.length = 0;
+        this.decoder.destroy();
+    }
     onclose(reason) {
         this.cleanup();
         this.backoff.reset();
         this._readyState = "closed";
         this.emitReserved("close", reason);
-        if (this._reconnection && !this.skipReconnect) {
+        if (this.reconnectionEnabled && !this.skipReconnect) {
             this.reconnect();
         }
     }
-    /**
-     * Attempt a reconnection.
-     *
-     * @private
-     */
     reconnect() {
-        if (this._reconnecting || this.skipReconnect)
+        if (this._reconnecting || this.skipReconnect) {
             return this;
-        const self = this;
-        if (this.backoff.attempts >= this._reconnectionAttempts) {
+        }
+        if (this.backoff.attempts >= this.reconnectionAttemptsLimit) {
             this.backoff.reset();
-            this.emitReserved("reconnect_failed");
             this._reconnecting = false;
+            this.emitReserved("reconnect_failed");
+            return;
         }
-        else {
-            const delay = this.backoff.duration();
-            this._reconnecting = true;
-            const timer = this.setTimeoutFn(() => {
-                if (self.skipReconnect)
-                    return;
-                this.emitReserved("reconnect_attempt", self.backoff.attempts);
-                // check again for the case socket closed in above events
-                if (self.skipReconnect)
-                    return;
-                self.open((err) => {
-                    if (err) {
-                        self._reconnecting = false;
-                        self.reconnect();
-                        this.emitReserved("reconnect_error", err);
-                    }
-                    else {
-                        self.onreconnect();
-                    }
-                });
-            }, delay);
-            // @ts-ignore
-            if (this.opts.autoUnref) {
-                timer.unref();
+        const delay = this.backoff.duration();
+        this._reconnecting = true;
+        const timer = this.setTimeoutFn(() => {
+            if (this.skipReconnect) {
+                return;
             }
-            this.subs.push(function subDestroy() {
-                clearTimeout(timer);
+            this.emitReserved("reconnect_attempt", this.backoff.attempts);
+            if (this.skipReconnect) {
+                return;
+            }
+            this.open((err) => {
+                if (err) {
+                    this._reconnecting = false;
+                    this.emitReserved("reconnect_error", err);
+                    this.reconnect();
+                }
+                else {
+                    this.onreconnect();
+                }
             });
-        }
+        }, delay);
+        this.subs.push(() => this.clearTimeoutFn(timer));
     }
-    /**
-     * Called upon successful reconnect.
-     *
-     * @private
-     */
     onreconnect() {
         const attempt = this.backoff.attempts;
         this._reconnecting = false;

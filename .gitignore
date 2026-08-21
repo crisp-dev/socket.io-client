@@ -1,3 +1,6 @@
 /node_modules
 /coverage
+/playwright-report
+/test-results
+/test/integration/dist
 

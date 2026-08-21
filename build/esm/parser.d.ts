@@ -1,69 +1,26 @@
 import { Emitter } from "@socket.io/component-emitter";
-/**
- * Protocol version.
- *
- * @public
- */
-export declare const protocol: number;
+export declare const protocol = 5;
 export declare enum PacketType {
     CONNECT = 0,
     DISCONNECT = 1,
     EVENT = 2,
-    ACK = 3,
-    CONNECT_ERROR = 4,
-    BINARY_EVENT = 5,
-    BINARY_ACK = 6
+    CONNECT_ERROR = 4
 }
 export interface Packet {
     type: PacketType;
-    nsp: string;
+    nsp: "/";
     data?: any;
-    id?: number;
-    attachments?: number;
 }
-/**
- * A socket.io Encoder instance
- */
 export declare class Encoder {
-    /**
-     * Encode a packet as a single string if non-binary, or as a
-     * buffer sequence, depending on packet type.
-     *
-     * @param {Object} obj - packet object
-     */
-    encode(obj: Packet): string[];
-    /**
-     * Encode packet as string.
-     */
-    private encodeAsString;
+    encode(packet: Packet): string[];
 }
 interface DecoderReservedEvents {
     decoded: (packet: Packet) => void;
 }
-/**
- * A socket.io Decoder instance
- *
- * @return {Object} decoder
- */
 export declare class Decoder extends Emitter<{}, {}, DecoderReservedEvents> {
-    constructor();
-    /**
-     * Decodes an encoded packet string into packet JSON.
-     *
-     * @param {String} obj - encoded packet
-     */
-    add(obj: any): void;
-    /**
-     * Decode a packet String (JSON data)
-     *
-     * @param {String} str
-     * @return {Object} packet
-     */
-    private decodeString;
-    private static isPayloadValid;
-    /**
-     * Deallocates a parser's resources
-     */
+    add(encoded: string): void;
     destroy(): void;
+    private decode;
+    private static isPayloadValid;
 }
 export {};

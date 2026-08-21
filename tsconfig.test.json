@@ -1,16 +1,13 @@
 {
   "compilerOptions": {
-    "outDir": "./build/esm",
-    "rootDir": "./lib",
     "target": "es2018",
     "module": "esnext",
     "moduleResolution": "bundler",
-    "declaration": true,
-    "esModuleInterop": true,
+    "noEmit": true,
     "strict": false,
     "types": []
   },
   "include": [
-    "./lib/**/*"
+    "./test/types.ts"
   ]
 }

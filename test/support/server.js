@@ -1,158 +1,42 @@
-// this is a test server to support tests which make requests
+import { createServer } from "node:http";
+import { Server } from "socket.io";
 
-const io = require("socket.io");
-const server = io(process.env.ZUUL_PORT || 3210, { pingInterval: 2000 });
-const expect = require("expect.js");
+const socketServer = createServer();
+const silentServer = createServer();
+const io = new Server(socketServer, {
+  transports: ["websocket"],
+  pingInterval: 500,
+  pingTimeout: 500,
+});
 
-server.of("/foo").on("connection", (socket) => {
-  socket.on("getId", (cb) => {
-    cb(socket.id);
+io.on("connection", (socket) => {
+  socket.emit("server:ready", {
+    id: socket.id,
+    nested: { enabled: true },
+  });
+
+  socket.on("client:echo", (payload) => {
+    socket.emit("server:echo", payload);
+  });
+
+  socket.on("client:buffered", (payload) => {
+    socket.emit("server:buffered", payload);
   });
 });
 
-server.of("/timeout_socket").on("connection", () => {
-  // register namespace
+silentServer.on("upgrade", () => {
+  // Keep the WebSocket handshake pending to exercise connection timeouts.
 });
 
-server.of("/valid").on("connection", () => {
-  // register namespace
-});
+await Promise.all([
+  new Promise((resolve) => socketServer.listen(39101, "127.0.0.1", resolve)),
+  new Promise((resolve) => silentServer.listen(39103, "127.0.0.1", resolve)),
+]);
 
-server.of("/asd").on("connection", () => {
-  // register namespace
-});
+function shutdown() {
+  io.close();
+  silentServer.close();
+}
 
-server.of("/abc").on("connection", (socket) => {
-  socket.emit("handshake", socket.handshake);
-});
-
-server.use((socket, next) => {
-  if (socket.request._query.fail)
-    return next(new Error("Auth failed (main namespace)"));
-  next();
-});
-
-server.of("/no").use((socket, next) => {
-  next(new Error("Auth failed (custom namespace)"));
-});
-
-server.on("connection", (socket) => {
-  // simple test
-  socket.on("hi", () => {
-    socket.emit("hi");
-  });
-
-  socket.on("echo", (arg, cb) => {
-    cb(arg);
-  });
-
-  // ack tests
-  socket.on("ack", () => {
-    socket.emit("ack", (a, b) => {
-      if (a === 5 && b.test) {
-        socket.emit("got it");
-      }
-    });
-  });
-
-  socket.on("getAckDate", (data, cb) => {
-    cb(new Date());
-  });
-
-  socket.on("getDate", () => {
-    socket.emit("takeDate", new Date());
-  });
-
-  socket.on("getDateObj", () => {
-    socket.emit("takeDateObj", { date: new Date() });
-  });
-
-  socket.on("getUtf8", () => {
-    socket.emit("takeUtf8", "てすと");
-    socket.emit("takeUtf8", "Я Б Г Д Ж Й");
-    socket.emit("takeUtf8", "Ä ä Ü ü ß");
-    socket.emit("takeUtf8", "utf8 — string");
-    socket.emit("takeUtf8", "utf8 — string");
-  });
-
-  // false test
-  socket.on("false", () => {
-    socket.emit("false", false);
-  });
-
-  // binary test
-  socket.on("doge", () => {
-    const buf = Buffer.from("asdfasdf", "utf8");
-    socket.emit("doge", buf);
-  });
-
-  // expect receiving binary to be buffer
-  socket.on("buffa", (a) => {
-    if (Buffer.isBuffer(a)) socket.emit("buffack");
-  });
-
-  // expect receiving binary with mixed JSON
-  socket.on("jsonbuff", (a) => {
-    expect(a.hello).to.eql("lol");
-    expect(Buffer.isBuffer(a.message)).to.be(true);
-    expect(a.goodbye).to.eql("gotcha");
-    socket.emit("jsonbuff-ack");
-  });
-
-  // expect receiving buffers in order
-  let receivedAbuff1 = false;
-  socket.on("abuff1", (a) => {
-    expect(Buffer.isBuffer(a)).to.be(true);
-    receivedAbuff1 = true;
-  });
-  socket.on("abuff2", (a) => {
-    expect(receivedAbuff1).to.be(true);
-    socket.emit("abuff2-ack");
-  });
-
-  // expect sent blob to be buffer
-  socket.on("blob", (a) => {
-    if (Buffer.isBuffer(a)) socket.emit("back");
-  });
-
-  // expect sent blob mixed with json to be buffer
-  socket.on("jsonblob", (a) => {
-    expect(a.hello).to.eql("lol");
-    expect(Buffer.isBuffer(a.message)).to.be(true);
-    expect(a.goodbye).to.eql("gotcha");
-    socket.emit("jsonblob-ack");
-  });
-
-  // expect blobs sent in order to arrive in correct order
-  let receivedblob1 = false;
-  let receivedblob2 = false;
-  socket.on("blob1", (a) => {
-    expect(Buffer.isBuffer(a)).to.be(true);
-    receivedblob1 = true;
-  });
-  socket.on("blob2", (a) => {
-    expect(receivedblob1).to.be(true);
-    expect(a).to.eql("second");
-    receivedblob2 = true;
-  });
-  socket.on("blob3", (a) => {
-    expect(Buffer.isBuffer(a)).to.be(true);
-    expect(receivedblob1).to.be(true);
-    expect(receivedblob2).to.be(true);
-    socket.emit("blob3-ack");
-  });
-
-  // emit buffer to base64 receiving browsers
-  socket.on("getbin", () => {
-    const buf = Buffer.from("asdfasdf", "utf8");
-    socket.emit("takebin", buf);
-  });
-
-  socket.on("getHandshake", (cb) => {
-    cb(socket.handshake);
-  });
-
-  socket.on("getId", (cb) => {
-    cb(socket.id);
-  });
-});
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
