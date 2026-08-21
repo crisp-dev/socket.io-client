@@ -27,7 +27,7 @@
   "dependencies": {
     "@socket.io/component-emitter": "~3.0.0",
     "backo2": "~1.0.2",
-    "engine.io-client": "file:../engine.io-client"
+    "engine.io-client": "git+https://github.com/crisp-dev/engine.io-client.git#97c2717bb590f6ba22e5cbfe06766886e3784acc"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

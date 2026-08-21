@@ -7,10 +7,6 @@ export default defineConfig({
   resolve: {
     alias: {
       "socket.io-client": resolve(root, "../../build/esm/index.js"),
-      "engine.io-client": resolve(
-        root,
-        "../../../engine.io-client/build/esm/index.js",
-      ),
     },
   },
   build: {
