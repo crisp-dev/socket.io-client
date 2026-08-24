@@ -1,6 +1,6 @@
 {
   "name": "@crisp-fix/socket.io-client",
-  "version": "4.4.3",
+  "version": "4.4.4",
   "description": "Realtime application framework client",
   "keywords": [
     "realtime",
@@ -27,7 +27,7 @@
   "dependencies": {
     "@socket.io/component-emitter": "~3.0.0",
     "backo2": "~1.0.2",
-    "engine.io-client": "git+https://github.com/crisp-dev/engine.io-client.git#579210444c1af72d8afc6cb6b96c86f8647438d6"
+    "engine.io-client": "git+https://github.com/crisp-dev/engine.io-client.git#0c498aef3dd9150717082fcdb3f9525b712d7dfb"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
