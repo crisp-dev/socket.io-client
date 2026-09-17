@@ -6,17 +6,25 @@ const bundle = await readFile(
   "utf8",
 );
 
-const packageOutput = (
-  await Promise.all(
-    ["index.js", "manager.js", "on.js", "parser.js", "socket.js"].map((file) =>
-      readFile(resolve(import.meta.dirname, "../../build/esm", file), "utf8"),
-    ),
-  )
-).join("\n");
+const packageOutput = await readFile(
+  resolve(import.meta.dirname, "../../build/esm/index.js"),
+  "utf8",
+);
+const packageMetadata = JSON.parse(
+  await readFile(resolve(import.meta.dirname, "../../package.json"), "utf8"),
+);
+
+if (packageMetadata.dependencies?.["engine.io-client"]) {
+  throw new Error("Engine.IO must remain a build-only dependency");
+}
 
 const packageForbidden = [
   ["CommonJS require", /\brequire\s*\(/],
   ["CommonJS exports", /\bmodule\.exports\b/],
+  [
+    "external Engine.IO import",
+    /(?:from\s+|import\s*\()\s*["']engine\.io-client["']/,
+  ],
 ];
 const browserForbidden = [
   ["debug package", /\bdebug(?:Module)?\b/],

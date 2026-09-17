@@ -1,7 +1,20 @@
-import { Socket as Engine, SocketOptions as EngineOptions } from "engine.io-client";
 import { DefaultEventsMap, EventsMap, Emitter } from "@socket.io/component-emitter";
 import { Packet } from "./parser.js";
 import { Socket } from "./socket.js";
+interface EngineOptions {
+    hostname?: string;
+    secure?: boolean;
+    port?: string | number;
+    query?: Record<string, any>;
+    path?: string;
+    transports?: readonly string[];
+    closeOnBeforeunload?: boolean;
+    useNativeTimers?: boolean;
+}
+interface EngineSocket extends Emitter<any, any> {
+    write(message: any, options?: any, callback?: any): this;
+    close(): this;
+}
 export interface ManagerOptions extends EngineOptions {
     path: string;
     reconnection: boolean;
@@ -24,7 +37,7 @@ interface ManagerReservedEvents {
     reconnect: (attempt: number) => void;
 }
 export declare class Manager<ListenEvents extends EventsMap = DefaultEventsMap, EmitEvents extends EventsMap = ListenEvents> extends Emitter<{}, {}, ManagerReservedEvents> {
-    engine: Engine;
+    engine: EngineSocket;
     uri: string;
     opts: Partial<ManagerOptions>;
     _autoConnect: boolean;

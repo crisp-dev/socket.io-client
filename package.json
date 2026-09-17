@@ -1,6 +1,6 @@
 {
   "name": "@crisp-fix/socket.io-client",
-  "version": "4.4.4",
+  "version": "4.4.5",
   "description": "Realtime application framework client",
   "keywords": [
     "realtime",
@@ -26,24 +26,24 @@
   "types": "./build/esm/index.d.ts",
   "dependencies": {
     "@socket.io/component-emitter": "~3.0.0",
-    "backo2": "~1.0.2",
-    "engine.io-client": "git+https://github.com/crisp-dev/engine.io-client.git#0c498aef3dd9150717082fcdb3f9525b712d7dfb"
+    "backo2": "~1.0.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
+    "engine.io-client": "git+https://github.com/crisp-dev/engine.io-client.git#eebac3fb0fea6182dbca510421f9f632a27ad529",
     "prettier": "^3.6.2",
     "socket.io": "^4.8.1",
     "typescript": "^7.0.2",
     "vite": "^8.2.2"
   },
   "scripts": {
-    "compile": "rm -rf ./build && tsc && node -e \"require('node:fs').writeFileSync('./build/esm/package.json', '{\\\"type\\\":\\\"module\\\"}\\n')\"",
+    "compile": "rm -rf ./build && tsc --emitDeclarationOnly && vite build && node -e \"require('node:fs').writeFileSync('./build/esm/package.json', '{\\\"type\\\":\\\"module\\\"}\\n')\"",
     "test": "npm run format:check && npm run compile && npm run test:types && npm run test:browser && npm run test:bundle",
     "test:types": "tsc -p tsconfig.test.json",
     "test:browser": "playwright test",
     "test:bundle": "vite build --config test/integration/vite.config.js && node test/integration/check-bundle.js",
-    "format:check": "prettier --check 'lib/**/*.ts' 'test/**/*.{js,ts}' 'playwright.config.js'",
-    "format:fix": "prettier --write 'lib/**/*.ts' 'test/**/*.{js,ts}' 'playwright.config.js'",
+    "format:check": "prettier --check 'lib/**/*.ts' 'test/**/*.{js,ts}' 'playwright.config.js' 'vite.config.js'",
+    "format:fix": "prettier --write 'lib/**/*.ts' 'test/**/*.{js,ts}' 'playwright.config.js' 'vite.config.js'",
     "prepack": "npm run compile"
   },
   "contributors": [
